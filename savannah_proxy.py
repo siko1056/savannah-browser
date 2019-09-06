@@ -32,11 +32,6 @@ class savannah_proxy:
                 '/savannah_{self.group}_{self.tracker}.csv'.format(self=self))
 
   def get_ids(self):
-    # Try to read IDs from cache first.
-    if os.path.exists(self.get_id_cache_file_name()):
-      print("Read IDs from '{}'.".format(self.get_id_cache_file_name()))
-      return self.get_ids_from_cache_file()
-
     # Get all group+tracker IDs from Savannah.
     current_id = 0
     num_of_ids = 1
@@ -61,16 +56,51 @@ class savannah_proxy:
       self.offset += self.chunk_size
       print("Read IDs {}/{}".format(self.offset, num_of_ids))
 
-    self.save_ids_to_cache_file()
     return self.ids
 
-  def get_ids_from_cache_file(self):
-    with open(self.get_id_cache_file_name(), newline='') as f:
-      for row in csv.reader(f):
-        self.ids.append(row[0])
-      return self.ids
+  def get_item(self, id):
+    """Return an item, a.k.a list of strings
 
-  def save_ids_to_cache_file(self):
+    An item has the order of fields:
+
+      "id", "title", "submitted_by", "submitted_on", "category", "severity",
+      "priority", "item_group", "status", "assigned_to", "originator",
+      "open_closed", "release", "operating_system"
+    """
+    item = [id]
+    response = requests.get('{self.url}/{self.tracker}/index.php?{id}'
+                            .format(self=self,id=id))
+    soup = BeautifulSoup(response.text, "html.parser")
+
+    # title
+    item.append(soup.find_all('h1')[-1].get_text().split(": ", 1)[1])
+
+    # Match key value pairs in remaining metadata.
+    metadata = soup.find_all('form')[-1].table.get_text().split("\n")
+    keys = ['Submitted by:\xa0', 'Submitted on:\xa0', 'Category:\xa0',
+            'Severity:\xa0', 'Priority:\xa0', 'Item Group:\xa0', 'Status:\xa0',
+            'Assigned to:\xa0', 'Originator Name:\xa0', 'Open/Closed:\xa0',
+            'Release:\xa0', 'Operating System:\xa0']
+    for i in range(len(keys)):
+      item.append(metadata[metadata.index(keys[i]) + 1])
+      if item[-1] in keys:
+         item[-1] = ""
+
+    return item
+
+  def save_items_to_cache_file(self):
     with open(self.get_id_cache_file_name(), 'w', newline='') as f:
-      for id in self.ids:
-        f.write(id + '\n')
+      cw = csv.writer(f)
+      header = ["id", "title", "submitted_by", "submitted_on", "category",
+                "severity", "priority", "item_group", "status", "assigned_to",
+                "originator", "open_closed", "release", "operating_system"]
+      cw.writerow(header)
+      id_len = len(p.get_ids())
+      for i, id in enumerate(p.get_ids()):
+        print("Write ID {} ({}/{})".format(id, i, id_len))
+        cw.writerow(p.get_item(id))
+
+
+if __name__ == '__main__':
+  p = savannah_proxy()
+  p.save_items_to_cache_file()
