@@ -2,6 +2,7 @@ import csv
 import os.path
 import re
 import requests
+import requests_cache
 import urllib.request
 import warnings
 from bs4 import BeautifulSoup
@@ -22,9 +23,13 @@ class savannah_proxy:
     if not os.path.exists(self.cache_dir):
       os.makedirs(self.cache_dir)
 
+    requests_cache.install_cache(os.path.join(self.cache_dir, 'savannah_cache'),
+                                 backend='sqlite',
+                                 expire_after=None)
+
   def get_id_cache_file_name(self):
     return Path(self.cache_dir +
-                '/savannah_{self.group}_{self.tracker}_ids.csv'.format(self=self))
+                '/savannah_{self.group}_{self.tracker}.csv'.format(self=self))
 
   def get_ids(self):
     # Try to read IDs from cache first.
@@ -61,15 +66,11 @@ class savannah_proxy:
 
   def get_ids_from_cache_file(self):
     with open(self.get_id_cache_file_name(), newline='') as f:
-      data = csv.reader(f)
-      data = list(data)[0]
-      if len(data[:-1]) != int(data[-1]):
-        warnings.warn("Cached ID data is corrupt")
-      self.ids = data[:-1]
+      for row in csv.reader(f):
+        self.ids.append(row[0])
       return self.ids
 
   def save_ids_to_cache_file(self):
     with open(self.get_id_cache_file_name(), 'w', newline='') as f:
       for id in self.ids:
-        f.write(id + ',')
-      f.write(len(ids))
+        f.write(id + '\n')
