@@ -9,6 +9,19 @@ class db
 {
   private $pdo;  /// database connection
 
+  public function getItems($filter)
+  {
+    $columns = array_column(array_values(CONFIG::ITEM_DATA), 0);
+    $command = 'SELECT ' . implode(",",  $columns) . ' FROM Items';
+    $stmt = $this->connectDB()->prepare($command);
+    $stmt->execute();
+    $data = array();
+    while ($item = $stmt->fetch(PDO::FETCH_ASSOC)) {
+      array_push($data, $item);
+    }
+    return $data;
+  }
+
   /**
    * Update an item with discussion.
    *
@@ -19,11 +32,15 @@ class db
    */
   public function update($item, $discussion)
   {
-    if ($this->itemExists($item['ItemID'], $item['TrackerID'])) {
-
+    $id = $this->getInteralItemID($item['ItemID'], $item['TrackerID']);
+    if ($id > 0) {
+      $this->updateItems($id, $item);
     } else {
       $id = $this->insertIntoItems($item);
-      foreach ($discussion as $comment) {
+    }
+    foreach ($discussion as $comment) {
+      $cid = $this->getCommentID($id, $comment['Date']);
+      if ($cid === -1) {
         $this->insertIntoDiscussions($id, $comment);
       }
     }
@@ -102,32 +119,50 @@ class db
     $stmt->execute($cols);
   }
 
-  private function itemExists(int $itemID, int $trackerID)
+  private function updateItems(int $id, $item)
   {
-    $command = 'SELECT EXISTS(SELECT 1 FROM Items WHERE ItemID=:ItemID
-                                                    AND TrackerID=:TrackerID)';
+    $columns = array_column(array_values(CONFIG::ITEM_DATA), 0);
+    $command = 'UPDATE Items SET ';
+    foreach ($columns as $c) {
+      $command .= "$c = :$c, ";
+    }
+    $command   .= 'LastUpdated = :now
+                   WHERE ID=:ID';
     $stmt = $this->connectDB()->prepare($command);
-    $stmt->execute([
-      ':ItemID'    => $itemID,
-      ':TrackerID' => $trackerID
-      ]);
-    $bool = $stmt->fetch(PDO::FETCH_ASSOC);
-    return ($bool[array_key_first($bool)] === '1');
+    $cols[':ID'] = $id;
+    $cols[':now'] = time();
+    foreach ($columns as $c) {
+      $cols[':' . $c] = $item[$c];
+    }
+    $stmt->execute($cols);
   }
 
-  /*
-  private function getItemID(int $itemID, int $trackerID)
+  private function getCommentID(int $itemID, int $date)
+  {
+    $command = 'SELECT ID FROM Discussions WHERE ItemID=:ItemID
+                                             AND Date=:Date';
+    $stmt = $this->connectDB()->prepare($command);
+    $stmt->execute([
+      ':ItemID' => $itemID,
+      ':Date'   => $date
+      ]);
+    $id = $stmt->fetch(PDO::FETCH_ASSOC);
+    return ($id === false) ? -1 : (int) $id["ID"];
+  }
+
+  private function getInteralItemID(int $itemID, int $trackerID)
   {
     $command = 'SELECT ID FROM Items WHERE ItemID=:ItemID
-                                       AND TrackerID=:TrackerID)';
+                                       AND TrackerID=:TrackerID';
     $stmt = $this->connectDB()->prepare($command);
     $stmt->execute([
       ':ItemID'    => $itemID,
       ':TrackerID' => $trackerID
       ]);
-    return $stmt->fetch(PDO::FETCH_ASSOC);
+    $id = $stmt->fetch(PDO::FETCH_ASSOC);
+    return ($id === false) ? -1 : (int) $id["ID"];
   }
-  */
+
 }
 
 ?>

@@ -49,7 +49,7 @@ class crawler
   public function crawl($tracker, int $id)
   {
     $item['ItemID']    = $id;
-    $item['TrackerID'] = CONFIG::TRACKER_ID[$tracker];
+    $item['TrackerID'] = array_search($tracker, CONFIG::TRACKER_ID);
 
     $url = CONFIG::BASE_URL . "/$tracker/index.php?$id";
     $doc = new DOMDocument;
@@ -113,7 +113,7 @@ class crawler
         } else {
           $text = '???';
         }
-        if (($text !== '???') || ($date !== 0)) {
+        if ($date !== 0) {
           $new_item["Date"]   = $date;
           $new_item["Author"] = $author;
           $new_item["Text"]   = $text;

@@ -30,15 +30,18 @@
 
 <?php
 
+require_once("api.php");
 require_once("db.php");
 require_once("crawler.php");
 
 $obj = new crawler();
 $db = new db();
+$api = new api();
 list($item, $discussion) = $obj->crawl('bugs', 59979);
 $db->update($item, $discussion);
 list($item, $discussion) = $obj->crawl('patch', 9998);
 $db->update($item, $discussion);
+echo $api->itemListAsHTML($db->getItems(1));
 //var_dump($obj->readAllIDs());
 ?>
 

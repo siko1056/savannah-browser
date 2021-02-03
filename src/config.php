@@ -47,8 +47,15 @@ class CONFIG
   // Currently supported Savannah trackers as IDs to not waste space
   // in the database.
   const TRACKER_ID = array(
-    'bugs'  => 1,
-    'patch' => 2
+    'bugs',  // 0
+    'patch'  // 1
+    );
+
+  // Currently supported Savannah trackers as IDs to not waste space
+  // in the database.
+  const ITEM_STATE = array(
+    'closed',  // 0
+    'open'     // 1
     );
 }
 
