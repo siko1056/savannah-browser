@@ -5,9 +5,7 @@ class CONFIG
   /**
    * Configurable constant parameters crawler.
    */
-  const URL           = 'https://savannah.gnu.org';
-  const TRACKER       = 'bugs';
-  const GROUP         = 'octave';
+  const BASE_URL      = 'https://savannah.gnu.org';
   const CHUNK_SIZE    = 150;
 
   /**
@@ -18,24 +16,39 @@ class CONFIG
   /**
    * Common data structures for the database and crawler (interface).
    *
-   * Alter with care!  First row "ID" is assumed to exist.
+   * Alter with care!  "ID" is a reserved database column name.
    */
-  const BUGS_DATA = array(
-  // label on website        , database name    , database datatype
-    array('ID:'              , 'ID'             , 'INTEGER PRIMARY KEY'),
-    array('Title:'           , 'Title'          , 'TEXT'               ),
-    array('Submitted by:'    , 'SubmittedBy'    , 'TEXT'               ),
-    array('Submitted on:'    , 'SubmittedOn'    , 'TIMESTAMP'          ),
-    array('Category:'        , 'Category'       , 'TEXT'               ),
-    array('Severity:'        , 'Severity'       , 'TEXT'               ),
-    array('Priority:'        , 'Priority'       , 'TEXT'               ),
-    array('Item Group:'      , 'ItemGroup'      , 'TEXT'               ),
-    array('Status:'          , 'Status'         , 'TEXT'               ),
-    array('Assigned to:'     , 'AssignedTo'     , 'TEXT'               ),
-    array('Originator Name:' , 'OriginatorName' , 'TEXT'               ),
-    array('Open/Closed:'     , 'OpenClosed'     , 'BOOLEAN'            ),
-    array('Release:'         , 'Release'        , 'TEXT'               ),
-    array('Operating System:', 'OperatingSystem', 'TEXT'               )
+  const ITEM_DATA = array(
+  // label on website            database column  , database datatype
+    'ID:'               => array('ItemID'         , 'INTEGER'  ),
+    'TrackerID:'        => array('TrackerID'      , 'INTEGER'  ),
+    'Title:'            => array('Title'          , 'TEXT'     ),
+    'Submitted by:'     => array('SubmittedBy'    , 'TEXT'     ),
+    'Submitted on:'     => array('SubmittedOn'    , 'TIMESTAMP'),
+    'Category:'         => array('Category'       , 'TEXT'     ),
+    'Severity:'         => array('Severity'       , 'TEXT'     ),
+    'Priority:'         => array('Priority'       , 'TEXT'     ),
+    'Item Group:'       => array('ItemGroup'      , 'TEXT'     ),
+    'Status:'           => array('Status'         , 'TEXT'     ),
+    'Assigned to:'      => array('AssignedTo'     , 'TEXT'     ),
+    'Originator Name:'  => array('OriginatorName' , 'TEXT'     ),
+    'Open/Closed:'      => array('OpenClosed'     , 'BOOLEAN'  ),
+    'Release:'          => array('Release'        , 'TEXT'     ),
+    'Operating System:' => array('OperatingSystem', 'TEXT'     )
+    );
+
+  const DISCUSSION_DATA = array(
+  //      database column, database datatype
+    array('Date'         , 'TIMESTAMP'),
+    array('Author'       , 'TEXT'     ),
+    array('Text'         , 'LONGTEXT' )
+    );
+
+  // Currently supported Savannah trackers as IDs to not waste space
+  // in the database.
+  const TRACKER_ID = array(
+    'bugs'  => 1,
+    'patch' => 2
     );
 }
 

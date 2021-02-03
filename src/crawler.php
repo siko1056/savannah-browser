@@ -5,15 +5,18 @@ require_once("config.php");
 // Getting data from Savannah.
 class crawler
 {
-  public function readAllIDs()
+  public function getIDs($group, $tracker)
   {
     // Get all group+tracker IDs from Savannah.
     $ids = array();
     $offset     = 0;
     $current_id = 0;
     $num_of_ids = 1;
-    $url = sprintf ('%s/%s/index.php?group=%s&status_id=0&chunksz=%d&offset=',
-                    CONFIG::URL, CONFIG::TRACKER, CONFIG::GROUP, CONFIG::CHUNK_SIZE);
+    $url = CONFIG::BASE_URL . "/$tracker/index.php"
+                            . "?group=$group"
+                            . "&status_id=0"
+                            . "&chunksz=" . CONFIG::CHUNK_SIZE
+                            . "&offset=";
 
     while ($current_id < $num_of_ids) {
       $doc = new DOMDocument;
@@ -43,32 +46,33 @@ class crawler
     return $ids;
   }
 
-  public function crawl(int $id)
+  public function crawl($tracker, int $id)
   {
-    $data['ID:'] = $id;
-    $url = sprintf ("%s/%s/index.php?$id", CONFIG::URL, CONFIG::TRACKER);
+    $item['ItemID']    = $id;
+    $item['TrackerID'] = CONFIG::TRACKER_ID[$tracker];
+
+    $url = CONFIG::BASE_URL . "/$tracker/index.php?$id";
     $doc = new DOMDocument;
     $doc->preserveWhiteSpace = false;
     $doc->loadHTMLFile($url);
 
-    // title
+    // Extract title.
     $title = $doc->getElementsByTagName('h1');
     if ($title->length > 1) {
       $title = explode(': ', $title[1]->nodeValue, 2)[1];
     } else {
       $title = '???';
     }
-    $data['Title:'] = $title;
+    $item['Title'] = $title;
 
     // Match key value pairs in remaining metadata.
     $xpath = new DOMXpath($doc);
     $metadata = $xpath->query('//form/table[1]');
     if ($metadata->length > 0) {
-      $keys = array_column(CONFIG::BUGS_DATA, 0);
       $metadata = explode("\n", $metadata[0]->nodeValue);
       foreach ($metadata as $idx=>$key) {
         $key = trim($key, " \u{a0}");  // remove space and fixed space
-        if (in_array($key, $keys)) {
+        if (array_key_exists($key, CONFIG::ITEM_DATA)) {
           $value = $metadata[$idx + 1];
           switch ($key) {
             case 'Submitted by:':
@@ -81,15 +85,15 @@ class crawler
               $value = ($value == "Open");  // BOOLEAN
               break;
           }
-          $data[$key] = $value;
+          $item[CONFIG::ITEM_DATA[$key][0]] = $value;
         }
       }
     }
 
     // Extract discussion for full-text search.
+    $discussion = array();
     $table = $xpath->query('//table[@class="box" and position()=1]');
     if ($table->length > 0) {
-      $discussion = array();
       foreach ($xpath->query('tr', $table[0]) as $comment) {
         $text   = $xpath->query('.//div', $comment);
         $date   = $xpath->query('./td[1]/a', $comment);
@@ -110,15 +114,14 @@ class crawler
           $text = '???';
         }
         if (($text !== '???') || ($date !== 0)) {
-          $new_item["date"]   = $date;
-          $new_item["author"] = $author;
-          $new_item["text"]   = $text;
+          $new_item["Date"]   = $date;
+          $new_item["Author"] = $author;
+          $new_item["Text"]   = $text;
           array_push($discussion,$new_item);
         }
       }
-      $data['discussion'] = $discussion;
     }
-    return $data;
+    return array($item, $discussion);
   }
 
   /**

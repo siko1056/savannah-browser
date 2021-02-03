@@ -2,82 +2,132 @@
 
 require_once("config.php");
 
-// Manage database access.
+/**
+ * Manage database access.
+ */
 class db
 {
-  private $pdo;  // Holds the opened database connection.
+  private $pdo;  /// database connection
 
-  public function update($data)
+  /**
+   * Update an item with discussion.
+   *
+   * @param item associative array with fields given in the "database column"
+   *             of `CONST::ITEM_DATA`.
+   * @param discussion associative array with fields given in the "database
+   *                   column" of `CONST::DISCUSSION_DATA`.
+   */
+  public function update($item, $discussion)
   {
-    if ($this->existsBug($data['ID:'])) {
-    } else {
-      $columns = array_column(CONFIG::BUGS_DATA, 1);
-      $command = 'INSERT INTO Bugs( ' . implode(",",  $columns) . ') '
-                  .        'VALUES(:' . implode(",:", $columns) . ')';
-      $stmt = $this->connectDB()->prepare($command);
-      $columns = array();
-      foreach (CONFIG::BUGS_DATA as $col) {
-        $columns[':' . $col[1]] = $data[$col[0]];
-      }
-      $stmt->execute($columns);
-    }
+    if ($this->itemExists($item['ItemID'], $item['TrackerID'])) {
 
-    //FIXME:multiple values!
-    $command = 'INSERT INTO BugsDiscussion(BugID,date,author,text) '
-                . 'VALUES(:bug,:date,:author,:text)';
-    $stmt = $db->prepare($command);
-    $stmt->execute([
-      ':bug'    => $data['ID:'],
-      ':date'   => $date,
-      ':author' => $author,
-      ':text'   => $text
-    ]);
+    } else {
+      $id = $this->insertIntoItems($data);
+      foreach ($discussion as $comment) {
+        $this->insertIntoDiscussions($id, $comment);
+      }
+    }
   }
 
+  /**
+   * Ensure proper connection to database file.
+   */
   private function connectDB()
   {
     if ($this->pdo == null) {
       try {
         $this->pdo = new PDO('sqlite:' . CONFIG::DB_FILE);
       } catch (PDOException $e) {
-        exit("Cannot connect to database.");
+        exit("Cannot open database file (write protected?).");
       }
-      $columns = '';
-      foreach (CONFIG::BUGS_DATA as $col) {
-        $columns .= $col[1] . " " . $col[2] . ",";
+      $items_cols = '';
+      foreach (array_values(CONFIG::ITEM_DATA) as $col) {
+        $items_cols .= $col[0] . " " . $col[1] . ",";
       }
-      $columns = substr($columns, 0, -1);
-      $commands = ['CREATE TABLE IF NOT EXISTS Bugs (' . $columns . ')',
-                   'CREATE TABLE IF NOT EXISTS BugsDiscussion (
-                      ID     INTEGER PRIMARY KEY AUTOINCREMENT,
-                      BugID  INTEGER,
-                      date   TIMESTAMP,
-                      author TEXT,
-                      text   LONGTEXT,
-                      FOREIGN KEY (BugID)
-                        REFERENCES Bugs(ID)
+      $discussions_cols = '';
+      foreach (CONFIG::DISCUSSION_DATA as $col) {
+        $discussions_cols .= $col[0] . " " . $col[1] . ",";
+      }
+      $commands = ['CREATE TABLE IF NOT EXISTS Items (
+                      ID           INTEGER PRIMARY KEY AUTOINCREMENT,
+                      '. $items_cols. ',
+                      LastUpdated  TIMESTAMP)',
+                   'CREATE TABLE IF NOT EXISTS Discussions (
+                      ID           INTEGER PRIMARY KEY AUTOINCREMENT,
+                      ItemID       INTEGER,
+                      '. $discussions_cols. ',
+                      FOREIGN KEY (ItemID)
+                        REFERENCES Items(ID)
                           ON UPDATE CASCADE
                           ON DELETE CASCADE
                     )'];
-      foreach ($commands as $command) {
-        try {
+      try {
+        foreach ($commands as $command) {
           $this->pdo->exec($command);
-        } catch (PDOException $e) {
-          exit("Database tables could not be created.");
         }
+      } catch (PDOException $e) {
+        exit("Database tables could not be created.");
       }
     }
     return $this->pdo;
   }
 
-  private function existsBug($id)
+  private function insertIntoItems($item)
   {
-    $command = 'SELECT EXISTS(SELECT 1 FROM Bugs WHERE ID=:ID)';
+    $columns = array_column(array_values(CONFIG::ITEM_DATA), 1);
+    $command = 'INSERT INTO Items
+                          ( ' . implode(",",  $columns) . ',LastUpdated)
+                    VALUES(:' . implode(",:", $columns) . ',:now)';
+    $db = $this->connectDB();
+    $stmt = $db->prepare($command);
+    $cols[':now'] = time();
+    foreach ($columns as $c) {
+      $cols[':' . $c] = $item[$c];
+    }
+    $stmt->execute($cols);
+    return $db->lastInsertId();
+  }
+
+  private function insertIntoDiscussions($itemID, $data)
+  {
+    $columns = array_column(DISCUSSION_DATA, 1);
+    $command = 'INSERT INTO Discussions
+                          ( ItemID, ' . implode(",",  $columns) . ')
+                    VALUES(:itemID,:' . implode(",:", $columns) . ')';
     $stmt = $this->connectDB()->prepare($command);
-    $stmt->execute([':ID' => $id]);
+    $cols[':itemID'] = $itemID;
+    foreach ($columns as $c) {
+      $cols[':' . $c] = $item[$c];
+    }
+    $stmt->execute($cols);
+  }
+
+  private function itemExists(int $itemID, int $trackerID)
+  {
+    $command = 'SELECT EXISTS(SELECT 1 FROM Items WHERE ItemID=:ItemID
+                                                    AND TrackerID=:TrackerID)';
+    $stmt = $this->connectDB()->prepare($command);
+    $stmt->execute([
+      ':ItemID'    => $itemID,
+      ':TrackerID' => $trackerID
+      ]);
     $bool = $stmt->fetch(PDO::FETCH_ASSOC);
     return ($bool[array_key_first($bool)] === '1');
   }
+
+  /*
+  private function getItemID(int $itemID, int $trackerID)
+  {
+    $command = 'SELECT ID FROM Items WHERE ItemID=:ItemID
+                                       AND TrackerID=:TrackerID)';
+    $stmt = $this->connectDB()->prepare($command);
+    $stmt->execute([
+      ':ItemID'    => $itemID,
+      ':TrackerID' => $trackerID
+      ]);
+    return $stmt->fetch(PDO::FETCH_ASSOC);
+  }
+  */
 }
 
 ?>

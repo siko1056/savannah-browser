@@ -35,7 +35,8 @@ require_once("crawler.php");
 
 $obj = new crawler();
 //var_dump($obj->readAllIDs());
-print_r($obj->crawl(59979));
+print_r($obj->crawl('bugs' , 59979));
+print_r($obj->crawl('patch', 9998));
 ?>
 
 <div id="footer">
