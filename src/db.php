@@ -22,7 +22,7 @@ class db
     if ($this->itemExists($item['ItemID'], $item['TrackerID'])) {
 
     } else {
-      $id = $this->insertIntoItems($data);
+      $id = $this->insertIntoItems($item);
       foreach ($discussion as $comment) {
         $this->insertIntoDiscussions($id, $comment);
       }
@@ -50,12 +50,12 @@ class db
       }
       $commands = ['CREATE TABLE IF NOT EXISTS Items (
                       ID           INTEGER PRIMARY KEY AUTOINCREMENT,
-                      '. $items_cols. ',
+                      '. $items_cols. '
                       LastUpdated  TIMESTAMP)',
                    'CREATE TABLE IF NOT EXISTS Discussions (
                       ID           INTEGER PRIMARY KEY AUTOINCREMENT,
                       ItemID       INTEGER,
-                      '. $discussions_cols. ',
+                      '. $discussions_cols. '
                       FOREIGN KEY (ItemID)
                         REFERENCES Items(ID)
                           ON UPDATE CASCADE
@@ -74,7 +74,7 @@ class db
 
   private function insertIntoItems($item)
   {
-    $columns = array_column(array_values(CONFIG::ITEM_DATA), 1);
+    $columns = array_column(array_values(CONFIG::ITEM_DATA), 0);
     $command = 'INSERT INTO Items
                           ( ' . implode(",",  $columns) . ',LastUpdated)
                     VALUES(:' . implode(",:", $columns) . ',:now)';
@@ -88,16 +88,16 @@ class db
     return $db->lastInsertId();
   }
 
-  private function insertIntoDiscussions($itemID, $data)
+  private function insertIntoDiscussions($itemID, $comment)
   {
-    $columns = array_column(DISCUSSION_DATA, 1);
+    $columns = array_column(CONFIG::DISCUSSION_DATA, 0);
     $command = 'INSERT INTO Discussions
                           ( ItemID, ' . implode(",",  $columns) . ')
                     VALUES(:itemID,:' . implode(",:", $columns) . ')';
     $stmt = $this->connectDB()->prepare($command);
     $cols[':itemID'] = $itemID;
     foreach ($columns as $c) {
-      $cols[':' . $c] = $item[$c];
+      $cols[':' . $c] = $comment[$c];
     }
     $stmt->execute($cols);
   }

@@ -34,9 +34,12 @@ require_once("db.php");
 require_once("crawler.php");
 
 $obj = new crawler();
+$db = new db();
+list($item, $discussion) = $obj->crawl('bugs', 59979);
+$db->update($item, $discussion);
+list($item, $discussion) = $obj->crawl('patch', 9998);
+$db->update($item, $discussion);
 //var_dump($obj->readAllIDs());
-print_r($obj->crawl('bugs' , 59979));
-print_r($obj->crawl('patch', 9998));
 ?>
 
 <div id="footer">
