@@ -51,19 +51,17 @@ class crawler
     $item['ItemID']    = $id;
     $item['TrackerID'] = array_search($tracker, CONFIG::TRACKER_ID);
 
-    $url = CONFIG::BASE_URL . "/$tracker/index.php?$id";
     $doc = new DOMDocument;
     $doc->preserveWhiteSpace = false;
-    $doc->loadHTMLFile($url);
+    $doc->loadHTMLFile(CONFIG::BASE_URL . "/$tracker/index.php?$id");
 
     // Extract title.
     $title = $doc->getElementsByTagName('h1');
     if ($title->length > 1) {
-      $title = explode(': ', $title[1]->nodeValue, 2)[1];
+      $item['Title'] = explode(': ', $title[1]->nodeValue, 2)[1];
     } else {
-      $title = '???';
+      $item['Title'] = '???';
     }
-    $item['Title'] = $title;
 
     // Match key value pairs in remaining metadata.
     $xpath = new DOMXpath($doc);
@@ -78,11 +76,14 @@ class crawler
             case 'Submitted by:':
               $value = trim(htmlspecialchars($value));
               break;
-            case 'Submitted on:':
-              $value = strtotime($value);  // TIMESTAMP
+            case 'Assigned to:':
+              $value = trim(htmlspecialchars($value));
               break;
-            case 'Open/Closed:':
-              $value = ($value == "Open");  // BOOLEAN
+            case 'Submitted on:':          // TIMESTAMP
+              $value = strtotime($value);
+              break;
+            case 'Open/Closed:':           // INTEGER
+              $value = array_search(strtolower($value), CONFIG::ITEM_STATE);
               break;
           }
           $item[CONFIG::ITEM_DATA[$key][0]] = $value;
@@ -94,8 +95,9 @@ class crawler
     $discussion = array();
     $table = $xpath->query('//table[@class="box" and position()=1]');
     if ($table->length > 0) {
+      $maxDate = 0;
       foreach ($xpath->query('tr', $table[0]) as $comment) {
-        $text   = $xpath->query('.//div', $comment);
+        $text   = $xpath->query('.//div'   , $comment);
         $date   = $xpath->query('./td[1]/a', $comment);
         $author = $xpath->query('./td[2]/a', $comment);
         if ($author->length > 0) {
@@ -114,12 +116,14 @@ class crawler
           $text = '???';
         }
         if ($date !== 0) {
+          $maxDate = max($maxDate, $date);
           $new_item["Date"]   = $date;
           $new_item["Author"] = $author;
           $new_item["Text"]   = $text;
           array_push($discussion,$new_item);
         }
       }
+      $item["LastComment"] = $maxDate;
     }
     return array($item, $discussion);
   }

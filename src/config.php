@@ -20,28 +20,29 @@ class CONFIG
    */
   const ITEM_DATA = array(
   // label on website            database column  , database datatype
-    'ID:'               => array('ItemID'         , 'INTEGER'  ),
-    'TrackerID:'        => array('TrackerID'      , 'INTEGER'  ),
-    'Title:'            => array('Title'          , 'TEXT'     ),
-    'Submitted by:'     => array('SubmittedBy'    , 'TEXT'     ),
-    'Submitted on:'     => array('SubmittedOn'    , 'TIMESTAMP'),
-    'Category:'         => array('Category'       , 'TEXT'     ),
-    'Severity:'         => array('Severity'       , 'TEXT'     ),
-    'Priority:'         => array('Priority'       , 'TEXT'     ),
-    'Item Group:'       => array('ItemGroup'      , 'TEXT'     ),
-    'Status:'           => array('Status'         , 'TEXT'     ),
-    'Assigned to:'      => array('AssignedTo'     , 'TEXT'     ),
-    'Originator Name:'  => array('OriginatorName' , 'TEXT'     ),
-    'Open/Closed:'      => array('OpenClosed'     , 'BOOLEAN'  ),
-    'Release:'          => array('Release'        , 'TEXT'     ),
-    'Operating System:' => array('OperatingSystem', 'TEXT'     )
+    'TrackerID:'        => array('TrackerID'      , 'INTEGER NOT NULL'  ),
+    'ID:'               => array('ItemID'         , 'INTEGER NOT NULL'  ),
+    'Title:'            => array('Title'          , 'TEXT'              ),
+    'Submitted by:'     => array('SubmittedBy'    , 'TEXT'              ),
+    'Submitted on:'     => array('SubmittedOn'    , 'TIMESTAMP NOT NULL'),
+    'Last comment:'     => array('LastComment'    , 'TIMESTAMP NOT NULL'),
+    'Category:'         => array('Category'       , 'TEXT'              ),
+    'Severity:'         => array('Severity'       , 'TEXT'              ),
+    'Priority:'         => array('Priority'       , 'TEXT'              ),
+    'Item Group:'       => array('ItemGroup'      , 'TEXT'              ),
+    'Status:'           => array('Status'         , 'TEXT'              ),
+    'Assigned to:'      => array('AssignedTo'     , 'TEXT'              ),
+    'Originator Name:'  => array('OriginatorName' , 'TEXT'              ),
+    'Open/Closed:'      => array('OpenClosed'     , 'INTEGER NOT NULL'  ),
+    'Release:'          => array('Release'        , 'TEXT'              ),
+    'Operating System:' => array('OperatingSystem', 'TEXT'              )
     );
 
   const DISCUSSION_DATA = array(
   //      database column, database datatype
-    array('Date'         , 'TIMESTAMP'),
-    array('Author'       , 'TEXT'     ),
-    array('Text'         , 'LONGTEXT' )
+    array('Date'         , 'TIMESTAMP NOT NULL'),
+    array('Author'       , 'TEXT'              ),
+    array('Text'         , 'LONGTEXT'          )
     );
 
   // Currently supported Savannah trackers as IDs to not waste space

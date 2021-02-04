@@ -22,6 +22,15 @@
   .priorg { background-color: #ffbfbf; }
   .priorh { background-color: #ffb7b7; }
   .priori { background-color: #ffadad; }
+  .prioraclosed { background-color: #f5ffeb; }
+  .priorbclosed { background-color: #edffe6; }
+  .priorcclosed { background-color: #eeffe1; }
+  .priordclosed { background-color: #e0ffd5; }
+  .prioreclosed { background-color: #ccffbb; }
+  .priorfclosed { background-color: #c6ffb9; }
+  .priorgclosed { background-color: #c0ffb2; }
+  .priorhclosed { background-color: #adffa4; }
+  .prioriclosed { background-color: #a0ff9d; }
   </style>
 </head>
 <body>
@@ -41,7 +50,7 @@ list($item, $discussion) = $obj->crawl('bugs', 59979);
 $db->update($item, $discussion);
 list($item, $discussion) = $obj->crawl('patch', 9998);
 $db->update($item, $discussion);
-echo $api->itemListAsHTML($db->getItems(1));
+echo $api->getItems('RichHTML');
 //var_dump($obj->readAllIDs());
 ?>
 
