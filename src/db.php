@@ -22,6 +22,17 @@ class db
     return $data;
   }
 
+  public function getLastItemIDFromTracker(int $trackerID)
+  {
+    $command = 'SELECT MAX(ItemID) AS ItemID
+                                   FROM  Items
+                                   WHERE TrackerID=:TrackerID';
+    $stmt = $this->connectDB()->prepare($command);
+    $stmt->execute([':TrackerID' => $trackerID]);
+    $id = $stmt->fetch(PDO::FETCH_ASSOC);
+    return ($id === false) ? -1 : (int) $id["ItemID"];
+  }
+
   /**
    * Update an item with discussion.
    *

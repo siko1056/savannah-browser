@@ -1,12 +1,14 @@
 <?php
 
 require_once("config.php");
+require_once("crawler.php");
 require_once("db.php");
 
 class api
 {
   public function getItems($format, $filter=false)
   {
+    $this->lookForNewItems();
     $db = new db();
     $items = $db->getItems($filter);
     switch ($format) {
@@ -25,6 +27,28 @@ class api
       default:
         error("Invalid format, use 'HTML', 'HTMLCSS', 'JSON', 'CSV'");
         break;
+    }
+  }
+
+  private function lookForNewItems()
+  {
+    //FIXME: wait some time before next check.
+
+    $crawler = new crawler();
+    $db      = new db();
+
+    foreach (CONFIG::TRACKER_ID as $tracker) {
+      $lastID = $db->getLastItemIDFromTracker(array_search($tracker,
+                                                           CONFIG::TRACKER_ID));
+      $ids = $crawler->getIDsFrom($tracker, $lastID);
+      // Traverse in reversed order in case of error.
+      foreach (array_reverse($ids) as $id) {
+        if ($id > $lastID) {
+          DEBUG_LOG("Crawl new '$tracker' with ID '$id'.");
+          list($item, $discussion) = $crawler->crawl($tracker, $id);
+          $db->update($item, $discussion);
+        }
+      }
     }
   }
 

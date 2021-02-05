@@ -5,7 +5,7 @@ require_once("config.php");
 // Getting data from Savannah.
 class crawler
 {
-  public function getIDs($group, $tracker)
+  public function getIDsFrom($tracker, $lastID)
   {
     // Get all group+tracker IDs from Savannah.
     $ids = array();
@@ -13,12 +13,15 @@ class crawler
     $current_id = 0;
     $num_of_ids = 1;
     $url = CONFIG::BASE_URL . "/$tracker/index.php"
-                            . "?group=$group"
+                            . "?group=" . CONFIG::GROUP['id']
                             . "&status_id=0"
                             . "&chunksz=" . CONFIG::CHUNK_SIZE
                             . "&offset=";
 
-    while ($current_id < $num_of_ids) {
+    while (($current_id < $num_of_ids)
+           && (empty($ids) || (end($ids) > $lastID))) {
+      DEBUG_LOG("Crawl index '$tracker'.  Item $current_id from $num_of_ids
+                 until ID '$lastID'.  Last ID found: '" . end($ids) . "'");
       $doc = new DOMDocument;
       $doc->preserveWhiteSpace = false;
       $doc->loadHTMLFile(sprintf ("$url%d", $current_id));
@@ -39,8 +42,6 @@ class crawler
       }
 
       $offset += CONFIG::CHUNK_SIZE;
-      //FIXME: debug.
-      $num_of_ids = 0;
     }
 
     return $ids;
@@ -62,6 +63,8 @@ class crawler
     } else {
       $item['Title'] = '???';
     }
+
+    //FIXME: Check tracker string!
 
     // Match key value pairs in remaining metadata.
     $xpath = new DOMXpath($doc);
@@ -90,6 +93,7 @@ class crawler
         }
       }
     }
+    //FIXME: Add unassigned fields as empty strings.
 
     // Extract discussion for full-text search.
     $discussion = array();
