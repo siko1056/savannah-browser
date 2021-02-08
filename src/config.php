@@ -5,10 +5,12 @@ class CONFIG
   /**
    * Configurable constant parameters crawler.
    */
-  const BASE_URL   = 'https://savannah.gnu.org';
-  const GROUP      = ['name' => 'GNU Octave',
-                      'id'   => 'octave'];
-  const CHUNK_SIZE = 150;
+  const BASE_URL    = 'https://savannah.gnu.org';
+  const GROUP       = ['name' => 'GNU Octave',
+                       'id'   => 'octave'];
+  const CHUNK_SIZE  = 150;  // Items read from the overview page at once.
+                            // (150 is Savannah maximum).
+  const CRAWL_DELAY =  60;  // Seconds to wait before crawling again.
 
   /**
    * Configurable constant parameters database.

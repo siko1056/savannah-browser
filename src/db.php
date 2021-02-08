@@ -12,7 +12,11 @@ class db
   public function getItems($filter)
   {
     $columns = array_column(array_values(CONFIG::ITEM_DATA), 0);
-    $command = 'SELECT ' . implode(",",  $columns) . ' FROM Items';
+    $command = 'SELECT ' . implode(",",  $columns) . '
+                FROM Items
+                ORDER BY
+                  TrackerID ASC,
+                  ItemID    DESC';
     $stmt = $this->connectDB()->prepare($command);
     $stmt->execute();
     $data = array();
@@ -31,6 +35,28 @@ class db
     $stmt->execute([':TrackerID' => $trackerID]);
     $id = $stmt->fetch(PDO::FETCH_ASSOC);
     return ($id === false) ? -1 : (int) $id["ItemID"];
+  }
+
+  public function getLastCrawlingTime()
+  {
+    $command = 'SELECT LastCrawling FROM Meta WHERE ID = 1';
+    $stmt = $this->connectDB()->prepare($command);
+    $stmt->execute();
+    $id = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $id ? $id["LastCrawling"] : 0;
+  }
+
+  public function setLastCrawlingNow()
+  {
+    if ($this->getLastCrawlingTime() === 0) {
+      $command = 'INSERT INTO Meta ( LastCrawling) VALUES (:LastCrawling)';
+    } else {
+      $command = 'UPDATE Meta
+                  SET    LastCrawling = :LastCrawling
+                  WHERE  ID = 1';
+    }
+    $stmt = $this->connectDB()->prepare($command);
+    $stmt->execute([':LastCrawling' => time()]);
   }
 
   /**
@@ -79,7 +105,7 @@ class db
       $commands = ['CREATE TABLE IF NOT EXISTS Items (
                       ID           INTEGER PRIMARY KEY AUTOINCREMENT,
                       '. $items_cols. '
-                      LastUpdated  TIMESTAMP)',
+                      LastUpdated  TIMESTAMP NOT NULL)',
                    'CREATE TABLE IF NOT EXISTS Discussions (
                       ID           INTEGER PRIMARY KEY AUTOINCREMENT,
                       ItemID       INTEGER,
@@ -88,6 +114,10 @@ class db
                         REFERENCES Items(ID)
                           ON UPDATE CASCADE
                           ON DELETE CASCADE
+                    )',
+                   'CREATE TABLE IF NOT EXISTS Meta (
+                      ID           INTEGER PRIMARY KEY AUTOINCREMENT,
+                      LastCrawling TIMESTAMP NOT NULL
                     )'];
       try {
         foreach ($commands as $command) {

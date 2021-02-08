@@ -32,11 +32,15 @@ class api
 
   private function lookForNewItems()
   {
-    //FIXME: wait some time before next check.
+    $db = new db();
+    $nextLookup = ($db->getLastCrawlingTime() + CONFIG::CRAWL_DELAY) - time();
+    if ($nextLookup > 0) {
+      DEBUG_LOG("Not looking for new items.
+                 Next lookup in $nextLookup seconds.");
+      return;
+    }
 
     $crawler = new crawler();
-    $db      = new db();
-
     foreach (CONFIG::TRACKER_ID as $tracker) {
       $lastID = $db->getLastItemIDFromTracker(array_search($tracker,
                                                            CONFIG::TRACKER_ID));
@@ -50,6 +54,7 @@ class api
         }
       }
     }
+    $db->setLastCrawlingNow();
   }
 
   /**
