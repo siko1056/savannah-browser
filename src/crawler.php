@@ -10,8 +10,8 @@ class crawler
     // Get all group+tracker IDs from Savannah.
     $ids = array();
     $offset     = 0;
-    $current_id = 0;
-    $num_of_ids = 1;
+    $current_id = 1;
+    $num_of_ids = (int) CONFIG::CHUNK_SIZE;
     $url = CONFIG::BASE_URL . "/$tracker/index.php"
                             . "?group=" . CONFIG::GROUP['id']
                             . "&status_id=0"
@@ -20,8 +20,9 @@ class crawler
 
     while (($current_id < $num_of_ids)
            && (empty($ids) || (end($ids) > $lastID))) {
-      DEBUG_LOG("Crawl index '$tracker'.  Item $current_id from $num_of_ids
-                 until ID '$lastID'.  Last ID found: '" . end($ids) . "'");
+      DEBUG_LOG("Crawl index '$tracker'.
+                 From item $current_id to $num_of_ids until ID '$lastID'.
+                 Last ID found: '" . end($ids) . "'");
       $doc = new DOMDocument;
       $doc->preserveWhiteSpace = false;
       $doc->loadHTMLFile(sprintf ("$url%d", $current_id));
