@@ -48,9 +48,11 @@ class api
       // Traverse in reversed order in case of error.
       foreach (array_reverse($ids) as $id) {
         if ($id > $lastID) {
-          DEBUG_LOG("Crawl new '$tracker' with ID '$id'.");
+          DEBUG_LOG("--> Crawl new '$tracker' with ID '$id'.");
           list($item, $discussion) = $crawler->crawl($tracker, $id);
-          $db->update($item, $discussion);
+          if (isset($item) && isset($discussion)) {
+            $db->update($item, $discussion);
+          }
         }
       }
     }

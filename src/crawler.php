@@ -57,6 +57,16 @@ class crawler
     $doc->preserveWhiteSpace = false;
     $doc->loadHTMLFile(CONFIG::BASE_URL . "/$tracker/index.php?$id");
 
+    // Check if bug belongs to the project group.
+    $project = $doc->getElementsByTagName('title');
+    if (($project->length < 1)
+        || (strncmp($project[0]->nodeValue, CONFIG::GROUP['name'],
+                    strlen(CONFIG::GROUP['name'])) !== 0)) {
+      DEBUG_LOG("--> '$tracker' item ID $id does not belong to project group '"
+                . CONFIG::GROUP['name'] . "'.");
+      return false;
+    }
+
     // Extract title.
     $title = $doc->getElementsByTagName('h1');
     if ($title->length > 1) {
@@ -64,8 +74,6 @@ class crawler
     } else {
       $item['Title'] = '???';
     }
-
-    //FIXME: Check tracker string!
 
     // Match key value pairs in remaining metadata.
     $xpath = new DOMXpath($doc);
