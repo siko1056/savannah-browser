@@ -50,6 +50,8 @@ class crawler
 
   public function crawl($tracker, int $id)
   {
+    $keys = array_column(array_values(CONFIG::ITEM_DATA), 0);
+    $item = array_fill_keys($keys, '');
     $item['ItemID']    = $id;
     $item['TrackerID'] = array_search($tracker, CONFIG::TRACKER_ID);
 
@@ -102,7 +104,6 @@ class crawler
         }
       }
     }
-    //FIXME: Add unassigned fields as empty strings.
 
     // Extract discussion for full-text search.
     $discussion = array();
