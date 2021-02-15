@@ -45,6 +45,10 @@ class api
       $lastID = $db->getLastItemIDFromTracker(array_search($tracker,
                                                            CONFIG::TRACKER_ID));
       $ids = $crawler->getIDsFrom($tracker, $lastID);
+      if ((count($ids) > 0) && ($ids[0] == $lastID)) {
+        DEBUG_LOG("--> Nothing new found.");
+        continue;
+      }
       // Traverse in reversed order in case of error.
       foreach (array_reverse($ids) as $id) {
         if ($id > $lastID) {
