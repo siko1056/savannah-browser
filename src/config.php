@@ -10,7 +10,16 @@ class CONFIG
                        'id'   => 'octave'];
   const CHUNK_SIZE  = 150;  // Items read from the overview page at once.
                             // (150 is Savannah maximum).
-  const CRAWL_DELAY =  60;  // Seconds to wait before crawling again.
+  const DELAY       = ['crawl' => 60];  // Seconds before crawling again.
+
+  /**
+   * There are seemingly no standard mail archives for Savannah.
+   * Specify for each CONFIG::TRACKER below a mail archive url.
+   */
+  const TRACKER_MAIL_ARCHIVE = [
+    'bugs'  => 'https://lists.gnu.org/archive/html/octave-bug-tracker/',
+    'patch' => 'https://lists.gnu.org/archive/html/octave-patch-tracker/'
+    ];
 
   /**
    * Configurable constant parameters database.
@@ -22,46 +31,43 @@ class CONFIG
    *
    * Alter with care!  "ID" is a reserved database column name.
    */
-  const ITEM_DATA = array(
-  // label on website            database column  , database datatype
-    'TrackerID:'        => array('TrackerID'      , 'INTEGER NOT NULL'  ),
-    'ID:'               => array('ItemID'         , 'INTEGER NOT NULL'  ),
-    'Title:'            => array('Title'          , 'TEXT'              ),
-    'Submitted by:'     => array('SubmittedBy'    , 'TEXT'              ),
-    'Submitted on:'     => array('SubmittedOn'    , 'TIMESTAMP NOT NULL'),
-    'Last comment:'     => array('LastComment'    , 'TIMESTAMP NOT NULL'),
-    'Category:'         => array('Category'       , 'TEXT'              ),
-    'Severity:'         => array('Severity'       , 'TEXT'              ),
-    'Priority:'         => array('Priority'       , 'TEXT'              ),
-    'Item Group:'       => array('ItemGroup'      , 'TEXT'              ),
-    'Status:'           => array('Status'         , 'TEXT'              ),
-    'Assigned to:'      => array('AssignedTo'     , 'TEXT'              ),
-    'Originator Name:'  => array('OriginatorName' , 'TEXT'              ),
-    'Open/Closed:'      => array('OpenClosed'     , 'INTEGER NOT NULL'  ),
-    'Release:'          => array('Release'        , 'TEXT'              ),
-    'Operating System:' => array('OperatingSystem', 'TEXT'              )
-    );
+  const ITEM_DATA = [
+  // label on website       database column  , database datatype
+    'TrackerID:'        => ['TrackerID'      , 'INTEGER NOT NULL'  ],
+    'ID:'               => ['ItemID'         , 'INTEGER NOT NULL'  ],
+    'Title:'            => ['Title'          , 'TEXT'              ],
+    'Submitted by:'     => ['SubmittedBy'    , 'TEXT'              ],
+    'Submitted on:'     => ['SubmittedOn'    , 'TIMESTAMP NOT NULL'],
+    'Last comment:'     => ['LastComment'    , 'TIMESTAMP NOT NULL'],
+    'Category:'         => ['Category'       , 'TEXT'              ],
+    'Severity:'         => ['Severity'       , 'TEXT'              ],
+    'Priority:'         => ['Priority'       , 'TEXT'              ],
+    'Item Group:'       => ['ItemGroup'      , 'TEXT'              ],
+    'Status:'           => ['Status'         , 'TEXT'              ],
+    'Assigned to:'      => ['AssignedTo'     , 'TEXT'              ],
+    'Originator Name:'  => ['OriginatorName' , 'TEXT'              ],
+    'Open/Closed:'      => ['OpenClosed'     , 'INTEGER NOT NULL'  ],
+    'Release:'          => ['Release'        , 'TEXT'              ],
+    'Operating System:' => ['OperatingSystem', 'TEXT'              ]
+    ];
 
-  const DISCUSSION_DATA = array(
-  //      database column, database datatype
-    array('Date'         , 'TIMESTAMP NOT NULL'),
-    array('Author'       , 'TEXT'              ),
-    array('Text'         , 'LONGTEXT'          )
-    );
+  const DISCUSSION_DATA = [
+  // database column, database datatype
+    ['Date'         , 'TIMESTAMP NOT NULL'],
+    ['Author'       , 'TEXT'              ],
+    ['Text'         , 'LONGTEXT'          ]
+    ];
 
-  // Currently supported Savannah trackers as IDs to not waste space
-  // in the database.
-  const TRACKER_ID = array(
-    'bugs',  // 0
-    'patch'  // 1
-    );
+  /// Timers hold in the database.
+  const TIMER = ['crawl'];
 
-  // Currently supported Savannah trackers as IDs to not waste space
-  // in the database.
-  const ITEM_STATE = array(
-    'closed',  // 0
-    'open'     // 1
-    );
+  /// Currently supported Savannah trackers as IDs to not waste space
+  /// in the database.
+  const TRACKER = ['bugs', 'patch'];
+
+  /// Currently supported Savannah item states as IDs to not waste space
+  /// in the database.
+  const ITEM_STATE = ['closed', 'open'];
 }
 
 function DEBUG_LOG($str)

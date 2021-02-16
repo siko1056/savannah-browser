@@ -6,11 +6,19 @@ require_once("db.php");
 
 class api
 {
+  /**
+   * Translate IDs and TIMESTAMPS to human readable strings.
+   *
+   * @param format one of 'HTML', 'HTMLCSS', 'JSON', 'CSV'.
+   *
+   * @param filter TODO: unused yet.
+   *
+   * @returns items formatted as string according to @p format.
+   */
   public function getItems($format, $filter=false)
   {
-    $this->lookForNewItems();
-    $db = new db();
-    $items = $db->getItems($filter);
+    $this->lookForUpdates();
+    $items = DB::getInstance()->getItems($filter);
     switch ($format) {
       case 'RichHTML':
         return $this->itemsAsHTML($items, true);
@@ -30,59 +38,71 @@ class api
     }
   }
 
-  private function lookForNewItems()
+
+  /**
+   * Look for updates on Savannah and the mailing list archive and update the
+   * database accordingly.
+   *
+   * @returns nothing `null`.
+   */
+  private function lookForUpdates()
   {
-    $db = new db();
-    $nextLookup = ($db->getLastCrawlingTime() + CONFIG::CRAWL_DELAY) - time();
+    $db = DB::getInstance();
+    $nextLookup = $db->getTimer('crawl') + CONFIG::DELAY['crawl'] - time();
     if ($nextLookup > 0) {
       DEBUG_LOG("Not looking for new items.
                  Next lookup in $nextLookup seconds.");
       return;
     }
 
+    $db->setTimer('crawl', time());
     $crawler = new crawler();
-    foreach (CONFIG::TRACKER_ID as $tracker) {
-      $lastID = $db->getLastItemIDFromTracker(array_search($tracker,
-                                                           CONFIG::TRACKER_ID));
-      $ids = $crawler->getIDsFrom($tracker, $lastID);
+    foreach (CONFIG::TRACKER as $trackerID=>$tracker) {
+      $lastID = $db->getLastItemIDFromTracker($trackerID);
+      $ids    = $crawler->crawlNewItems($tracker, $lastID);
       if ((count($ids) > 0) && ($ids[0] == $lastID)) {
-        DEBUG_LOG("--> Nothing new found.");
+        DEBUG_LOG("--> No new items found.");
         continue;
       }
       // Traverse in reversed order in case of error.
       foreach (array_reverse($ids) as $id) {
         if ($id > $lastID) {
           DEBUG_LOG("--> Crawl new '$tracker' with ID '$id'.");
-          list($item, $discussion) = $crawler->crawl($tracker, $id);
+          list($item, $discussion) = $crawler->crawlItem($tracker, $id);
           if (isset($item) && isset($discussion)) {
             $db->update($item, $discussion);
           }
         }
       }
     }
-    $db->setLastCrawlingNow();
   }
+
 
   /**
    * Translate IDs and TIMESTAMPS to human readable strings.
    *
    * @param item associative array with fields given in the "database column"
    *             of `CONST::ITEM_DATA`.
+   *
+   * @returns item with all IDs and TIMESTAMPS as human readable strings.
    */
   private function idsToString($item)
   {
-    $item["TrackerID"]   = CONFIG::TRACKER_ID[$item["TrackerID"]];
+    $item["TrackerID"]   = CONFIG::TRACKER[$item["TrackerID"]];
     $item["OpenClosed"]  = CONFIG::ITEM_STATE[$item["OpenClosed"]];
     $item["SubmittedOn"] = date(DATE_RFC2822, $item["SubmittedOn"]);
     $item["LastComment"] = date(DATE_RFC2822, $item["LastComment"]);
     return $item;
   }
 
+
   /**
    * Retrieve Savannah css class from item's priority.
    *
    * @param item associative array with fields given in the "database column"
    *             of `CONST::ITEM_DATA`.
+   *
+   * @returns a string with the css class attribute.
    */
   private function cssPriority($item)
   {
@@ -92,6 +112,7 @@ class api
     return " class=\"prior$str\"";
   }
 
+
   /**
    * Add HTML URLs to Savannah where possible.
    *
@@ -99,6 +120,8 @@ class api
    *
    * @param item associative array with fields given in the "database column"
    *             of `CONST::ITEM_DATA`.
+   *
+   * @returns item inserted URLs.
    */
   private function addURLs($item)
   {
@@ -110,6 +133,7 @@ class api
     return $item;
   }
 
+
   /**
    * Get HTML representation of a list of items (without discussion).
    *
@@ -117,6 +141,8 @@ class api
    *              "database column" of `CONST::ITEM_DATA`.
    *
    * @param color (default = false) add Savannah compatible css classes.
+   *
+   * @returns item as HTML string.
    */
   private function itemsAsHTML($items, $color = false)
   {
@@ -142,6 +168,8 @@ class api
    *
    * @param items list of associative arrays with fields given in the
    *              "database column" of `CONST::ITEM_DATA`.
+   *
+   * @returns item as JSON string.
    */
   private function itemsAsJSON($items)
   {
@@ -156,6 +184,8 @@ class api
    *
    * @param items list of associative arrays with fields given in the
    *              "database column" of `CONST::ITEM_DATA`.
+   *
+   * @returns item as CSV string.
    */
   private function itemsAsCSV($items)
   {

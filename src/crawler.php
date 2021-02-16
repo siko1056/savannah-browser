@@ -2,10 +2,41 @@
 
 require_once("config.php");
 
-// Getting data from Savannah.
+/**
+ * Getting data from Savannah.
+ */
 class crawler
 {
-  public function getIDsFrom($tracker, $lastID)
+  /**
+   * Look at the Savannah mailing list archives, which items have been updated.
+   *
+   * @param tracker see `CONST::TRACKER` for possible values.
+   *
+   * @param lastTimestamp last timestamp to check to speed up the search.
+   *
+   * @returns an array of valid item IDs of a specific Savannah tracker.
+   */
+  public function crawlUpdatedItems($tracker, int $lastTimestamp)
+  {
+    $ids = array();
+
+    $trackerID = array_search($tracker, CONFIG::TRACKER);
+    $url = CONFIG::TRACKER_MAIL_ARCHIVE[$trackerID];
+
+    return $ids;
+  }
+
+
+  /**
+   * Get all valid item IDs of a specific Savannah tracker.
+   *
+   * @param tracker see `CONST::TRACKER` for possible values.
+   *
+   * @param lastID last item ID to check to speed up the search.
+   *
+   * @returns an array of valid item IDs of a specific Savannah tracker.
+   */
+  public function crawlNewItems($tracker, int $lastID)
   {
     // Get all group+tracker IDs from Savannah.
     $ids = array();
@@ -48,7 +79,22 @@ class crawler
     return $ids;
   }
 
-  public function crawl($tracker, int $id)
+
+  /**
+   * Crawl all possible information about a specific Savannah item.
+   *
+   * @param tracker see `CONST::TRACKER` for possible values.
+   *
+   * @param id item ID on the respective tracker.
+   *
+   * @returns `array($item, $discussion)`, where
+   *          `$item` is associative array with fields given in the "database
+   *                  column" of `CONST::ITEM_DATA`.
+   *          `$discussion` is associative array with fields given in the
+   *                        "database column" of `CONST::DISCUSSION_DATA`
+   *          or `false` on error.
+   */
+  public function crawlItem($tracker, int $id)
   {
     $keys = array_column(array_values(CONFIG::ITEM_DATA), 0);
     $item = array_fill_keys($keys, '');
@@ -141,6 +187,7 @@ class crawler
     }
     return array($item, $discussion);
   }
+
 
   /**
    * Helper function to retrieve HTML from a DOM node.
