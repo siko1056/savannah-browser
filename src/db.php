@@ -144,7 +144,7 @@ class db
     $stmt = $this->pdo->prepare($command);
     $stmt->execute([':ID' => $id + 1]);  // Index shift for database!
     $timestamp = $stmt->fetch(PDO::FETCH_ASSOC);
-    return $timestamp ? (int) $timestamp["Time"] : false;
+    return ($timestamp !== false) ? (int) $timestamp["Time"] : false;
   }
 
 

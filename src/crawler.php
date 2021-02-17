@@ -34,11 +34,11 @@ class crawler
    *
    * @param lastID last item ID to check to speed up the search.
    *
-   * @returns an array of valid item IDs of a specific Savannah tracker.
+   * @returns an array of valid item IDs larger than @p lastID.
    */
   public function crawlNewItems($tracker, int $lastID)
   {
-    DEBUG_LOG("Crawl items from '$tracker' until item ID '$lastID'.");
+    DEBUG_LOG("Crawl items from '$tracker' tracker until item ID '$lastID'.");
 
     $offset       = 0;
     $num_of_items = 1;

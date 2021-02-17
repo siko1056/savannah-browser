@@ -43,36 +43,46 @@ class api
    * Look for updates on Savannah and the mailing list archive and update the
    * database accordingly.
    *
+   * @param tracker (optional) specify a tracker to narrow the search
+   *
+   * @param ids (optional) array of item IDs to narrow the search
+   *
    * @returns nothing `null`.
    */
-  private function lookForUpdates()
+  private function lookForUpdates($tracker = null, $ids = array())
   {
-    $db = DB::getInstance();
-    $nextLookup = $db->getTimer('crawl') + CONFIG::DELAY['crawl'] - time();
-    if ($nextLookup > 0) {
-      DEBUG_LOG("Not looking for new items.
-                 Next lookup in $nextLookup seconds.");
+    // If no tracker is given, recursive call over all trackers.
+    if (! isset($tracker)) {
+      foreach (CONFIG::TRACKER as $tracker) {
+        $this->lookForUpdates($tracker);
+      }
       return;
     }
+    $trackerID = array_search($tracker, CONFIG::TRACKER);
+    $ids = (is_array($ids)) ? $ids : [$ids];  // ensure array
 
-    $db->setTimer('crawl', time());
+    $db = DB::getInstance();
     $crawler = new crawler();
-    foreach (CONFIG::TRACKER as $trackerID=>$tracker) {
-      $lastID = $db->getLastItemIDFromTracker($trackerID);
-      $ids    = $crawler->crawlNewItems($tracker, $lastID);
-      if ((count($ids) > 0) && ($ids[0] == $lastID)) {
-        DEBUG_LOG("--> No new items found.");
-        continue;
+
+    // If no IDs are specified, look for new or updated items.
+    if (count($ids) == 0) {
+      $nextLookup = $db->getTimer("crawlNewItems_$tracker")
+                  + CONFIG::DELAY["crawlNewItems"] - time();
+      if ($nextLookup <= 0) {
+        $db->setTimer("crawlNewItems_$tracker", time());
+        $lastID = $db->getLastItemIDFromTracker($trackerID);
+        $ids += $crawler->crawlNewItems($tracker, $lastID);
+      } else {
+        DEBUG_LOG("'crawlNewItems_$tracker' delayed for $nextLookup seconds.");
       }
-      // Traverse in reversed order in case of error.
-      foreach (array_reverse($ids) as $id) {
-        if ($id > $lastID) {
-          DEBUG_LOG("--> Crawl new '$tracker' with ID '$id'.");
-          list($item, $discussion) = $crawler->crawlItem($tracker, $id);
-          if (isset($item) && isset($discussion)) {
-            $db->update($item, $discussion);
-          }
-        }
+    }
+
+    sort(array_unique($ids));  // oldest first
+    foreach ($ids as $id) {
+      DEBUG_LOG("--> Update item ID '$id' from '$tracker'.");
+      list($item, $discussion) = $crawler->crawlItem($tracker, $id);
+      if (isset($item) && isset($discussion)) {
+        $db->update($item, $discussion);
       }
     }
   }
