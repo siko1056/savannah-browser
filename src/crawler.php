@@ -38,42 +38,49 @@ class crawler
    */
   public function crawlNewItems($tracker, int $lastID)
   {
-    // Get all group+tracker IDs from Savannah.
+    DEBUG_LOG("Crawl items from '$tracker' until item ID '$lastID'.");
+
+    $offset       = 0;
+    $num_of_items = 1;
+    $lastIDfound  = PHP_INT_MAX;
     $ids = array();
-    $offset     = 0;
-    $current_id = 1;
-    $num_of_ids = (int) CONFIG::CHUNK_SIZE;
     $url = CONFIG::BASE_URL . "/$tracker/index.php"
                             . "?group=" . CONFIG::GROUP['id']
                             . "&status_id=0"
-                            . "&chunksz=" . CONFIG::CHUNK_SIZE
-                            . "&offset=";
+                            . "&chunksz=" . CONFIG::CHUNK_SIZE;
 
-    while (($current_id < $num_of_ids)
-           && (empty($ids) || (end($ids) > $lastID))) {
-      DEBUG_LOG("Crawl index '$tracker'.
-                 From item $current_id to $num_of_ids until ID '$lastID'.
-                 Last ID found: '" . end($ids) . "'");
+    while (($offset < $num_of_items) && ($lastIDfound > $lastID)) {
+      DEBUG_LOG("--> Crawl $num_of_items items, offset=$offset.");
       $doc = new DOMDocument;
       $doc->preserveWhiteSpace = false;
-      $doc->loadHTMLFile(sprintf ("$url%d", $current_id));
+      $doc->loadHTMLFile("$url&offset=$offset");
 
       // Watching out for a string like "9027 matching items - Items 1 to 50",
       // where "9027" should be the total number of project bugs.
       $id_counts = $doc->getElementsByTagName('h2');
       if ($id_counts->length > 1) {
         preg_match_all('!\d+!', $id_counts->item(0)->nodeValue, $matches);
-        $current_id = (int) $matches[0][2];
-        $num_of_ids = (int) $matches[0][0];
+        $offset       = (int) $matches[0][2];  // prepare for next loop
+        $num_of_items = (int) $matches[0][0];
       }
 
       // Find IDs on current page
+      $newIDs = array();
       $xpath = new DOMXpath($doc);
       foreach ($xpath->query('//table[@class="box"]/tr/td[1]') as $id) {
-        array_push($ids, (int) substr($id->nodeValue, 3));
+        $id = (int) substr($id->nodeValue, 3);
+        if ($id > $lastID) {
+          array_push($newIDs, $id);
+        }
+        $lastIDfound = $id;
       }
-
-      $offset += CONFIG::CHUNK_SIZE;
+      if (count($newIDs) > 0) {
+        DEBUG_LOG("----> Found IDs from '" . $newIDs[0]
+                           . "' down to '" . end($newIDs) . "'");
+      } else {
+        DEBUG_LOG("----> No new items found.");
+      }
+      $ids += $newIDs;
     }
 
     return $ids;
@@ -99,7 +106,7 @@ class crawler
     $keys = array_column(array_values(CONFIG::ITEM_DATA), 0);
     $item = array_fill_keys($keys, '');
     $item['ItemID']    = $id;
-    $item['TrackerID'] = array_search($tracker, CONFIG::TRACKER_ID);
+    $item['TrackerID'] = array_search($tracker, CONFIG::TRACKER);
 
     $doc = new DOMDocument;
     $doc->preserveWhiteSpace = false;
