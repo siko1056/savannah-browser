@@ -18,7 +18,6 @@ class api
    */
   public function getItems($format, $filter=false)
   {
-    $this->lookForUpdates();
     $items = DB::getInstance()->getItems($filter);
     $fmt = new formatter($items);
     switch ($format) {
@@ -51,7 +50,7 @@ class api
    *
    * @returns nothing `null`.
    */
-  private function lookForUpdates($tracker = null, $ids = array())
+  public function lookForUpdates($tracker = null, $ids = array())
   {
     // If no tracker is given, recursive call over all trackers.
     if (! isset($tracker)) {
@@ -61,6 +60,10 @@ class api
       return;
     }
     $trackerID = array_search($tracker, CONFIG::TRACKER);
+    if ($trackerID === false) {
+      DEBUG_LOG("Invalid tracker '$tracker'.");
+      return;
+    }
     $ids = (is_array($ids)) ? $ids : [$ids];  // ensure array
 
     $db = DB::getInstance();
@@ -80,15 +83,20 @@ class api
       }
 
       // Look for update items, only if not much new is to be added.
-      $nextLookup = $db->getTimer("crawlUpdatedItems_$tracker")
-                  + CONFIG::DELAY["crawlUpdatedItems"] - time();
-      if (($nextLookup <= 0) && (count($ids) < 10)) {
-        $db->setTimer("crawlUpdatedItems_$tracker", time());
-        $lastComment = $db->getMaxLastCommentFromTracker($trackerID);
-        $ids = array_merge($ids, $crawler->crawlUpdatedItems($tracker,
-                                                             $lastComment));
+      if (count($ids) < CONFIG::MAX_CRAWL_ITEMS) {
+        $nextLookup = $db->getTimer("crawlUpdatedItems_$tracker")
+                    + CONFIG::DELAY["crawlUpdatedItems"] - time();
+        if ($nextLookup <= 0) {
+          $db->setTimer("crawlUpdatedItems_$tracker", time());
+          $lastComment = $db->getMaxLastCommentFromTracker($trackerID);
+          $ids = array_merge($ids, $crawler->crawlUpdatedItems($tracker,
+                                                              $lastComment));
+        } else {
+          DEBUG_LOG("'crawlUpdatedItems_$tracker'
+                    delayed for $nextLookup seconds.");
+        }
       } else {
-        DEBUG_LOG("'crawlUpdatedItems_$tracker' delayed for $nextLookup seconds.");
+        DEBUG_LOG("'crawlUpdatedItems_$tracker' skipped.");
       }
     } else {
       $nextLookup = $db->getTimer("crawlItem")
@@ -97,6 +105,11 @@ class api
         $db->setTimer("crawlItem", time());
       } else {
         DEBUG_LOG("'crawlItem' delayed for $nextLookup seconds.");
+        return;
+      }
+      if (count($ids) > CONFIG::MAX_CRAWL_ITEMS) {
+        DEBUG_LOG("'crawlItem' not more than "
+                  . CONFIG::MAX_CRAWL_ITEMS . " item updates permitted.");
         return;
       }
     }

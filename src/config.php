@@ -13,6 +13,9 @@ class CONFIG
   const DELAY       = ['crawlItem'         =>     10,   // Seconds delay
                        'crawlNewItems'     => 1 * 60,   // Seconds delay
                        'crawlUpdatedItems' => 1 * 60];  // Seconds delay
+  const MAX_CRAWL_ITEMS = 5;  // Maximal number of items updates per request.
+                              // Automatic item updates are not affected
+                              // by this setting.
 
   /**
    * There are seemingly no standard mail archives for Savannah.

@@ -43,6 +43,7 @@ require_once("api.php");
 
 $api = new api();
 
+$api->lookForUpdates('bugs', 60063);
 echo $api->getItems('RichHTML');
 
 ?>
