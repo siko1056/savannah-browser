@@ -18,10 +18,56 @@ class crawler
    */
   public function crawlUpdatedItems($tracker, int $lastTimestamp)
   {
-    $ids = array();
+    // Day resolution.
+    $finalYear  = date("Y", $lastTimestamp);
+    $finalMonth = date("m", $lastTimestamp);
+    $finalDay   = date("d", $lastTimestamp);
+    $lastTimestamp = mktime(0,0,0,$finalMonth,$finalDay,$finalYear);
+    DEBUG_LOG("Crawl updated items from '$tracker' tracker
+               since '$finalYear-$finalMonth'.");
 
-    $trackerID = array_search($tracker, CONFIG::TRACKER);
-    $url = CONFIG::TRACKER_MAIL_ARCHIVE[$trackerID];
+    $ids = array();
+    $url = CONFIG::TRACKER_MAIL_ARCHIVE[$tracker];
+    $pattern = ($tracker == 'bugs') ? '!\[bug #(\d*?)\]!'
+                                    : '!\[patch #(\d*?)\]!';
+
+    for ($Y = date("Y"), $M = date("m");
+         (($Y > $finalYear) || ($M >= $finalMonth)); $M--) {
+      if ($M <= 0) {
+        $M = 12;
+        $Y--;
+      }
+      $M = sprintf('%02d', $M);
+      DEBUG_LOG("--> Crawl $Y-$M.");
+
+      $doc = new DOMDocument;
+      $doc->preserveWhiteSpace = false;
+      $doc->loadHTMLFile("$url$Y-$M");
+      $xpath = new DOMXpath($doc);
+      foreach ($xpath->query('//body/ul/li') as $day) {
+        $day  = $day->nodeValue;
+        $date = explode("$Y", $day, 2);
+        $day  = $date[1];
+        $date = (int) strtotime($date[0] . "$Y");
+        //FIXME DEBUG_LOG(date("Y-m-d", $date) . " < " . date("Y-m-d", $lastTimestamp));
+        if ($date < $lastTimestamp) {
+          continue;
+        }
+        preg_match_all($pattern, $day, $matches);
+        $newIDs = array_map('intval', array_unique($matches[1]));
+        sort($newIDs);
+        $ids = array_merge ($ids, $newIDs);
+      }
+    }
+    $ids = array_unique($ids);
+    sort($ids);
+    if (count($ids) > 0) {
+      DEBUG_LOG("----> Found " . count($ids) . " updated items
+                    from ID '" . $ids[0]     . "'
+                         to '" . end($ids)   . "'");
+    } else {
+      DEBUG_LOG("----> No updated items found.");
+    }
 
     return $ids;
   }
@@ -38,7 +84,7 @@ class crawler
    */
   public function crawlNewItems($tracker, int $lastID)
   {
-    DEBUG_LOG("Crawl items from '$tracker' tracker until item ID '$lastID'.");
+    DEBUG_LOG("Crawl new items from '$tracker' tracker until ID '$lastID'.");
 
     $offset       = 0;
     $num_of_items = 1;
@@ -80,7 +126,7 @@ class crawler
       } else {
         DEBUG_LOG("----> No new items found.");
       }
-      $ids += $newIDs;
+      $ids = array_merge($ids, $newIDs);
     }
 
     return $ids;

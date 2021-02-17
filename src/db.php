@@ -109,17 +109,37 @@ class db
 
 
   /**
-   * Get last item ID from a tracker.
+   * Get maximal item ID from a tracker.
    *
    * @param trackerID see index value of `CONST::TRACKER`.
    *
    * @returns item ID as integer or `false` on error.
    */
-  public function getLastItemIDFromTracker(int $trackerID)
+  public function getMaxItemIDFromTracker(int $trackerID)
   {
     $command = 'SELECT MAX(ItemID) AS ItemID
                                    FROM  Items
                                    WHERE TrackerID=:TrackerID';
+    $stmt = $this->pdo->prepare($command);
+    $stmt->execute([':TrackerID' => $trackerID]);
+    $id = $stmt->fetch(PDO::FETCH_ASSOC);
+    return ($id === false) ? false : (int) $id["ItemID"];
+  }
+
+
+
+  /**
+   * Get newest LastComment timestamp from a tracker.
+   *
+   * @param trackerID see index value of `CONST::TRACKER`.
+   *
+   * @returns timestamp as integer or `false` on error.
+   */
+  public function getMaxLastCommentFromTracker(int $trackerID)
+  {
+    $command = 'SELECT MAX(LastComment) AS ItemID
+                                        FROM  Items
+                                        WHERE TrackerID=:TrackerID';
     $stmt = $this->pdo->prepare($command);
     $stmt->execute([':TrackerID' => $trackerID]);
     $id = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -190,6 +210,7 @@ class db
     foreach ($discussion as $comment) {
       $cid = $this->getCommentID($id, $comment['Date']);
       if ($cid === -1) {
+        DEBUG_LOG("----> New comment added.");
         $this->insertIntoDiscussions($id, $comment);
       }
     }

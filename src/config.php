@@ -10,7 +10,9 @@ class CONFIG
                        'id'   => 'octave'];
   const CHUNK_SIZE  = 150;  // Items read from the overview page at once.
                             // (150 is Savannah maximum).
-  const DELAY       = ['crawlNewItems' => 60];  // Seconds delay
+  const DELAY       = ['crawlItem'         =>     10,   // Seconds delay
+                       'crawlNewItems'     => 1 * 60,   // Seconds delay
+                       'crawlUpdatedItems' => 1 * 60];  // Seconds delay
 
   /**
    * There are seemingly no standard mail archives for Savannah.
@@ -59,8 +61,11 @@ class CONFIG
     ];
 
   /// Timers hold in the database.
-  const TIMER = ['crawlNewItems_bugs',
-                 'crawlNewItems_patch'];
+  const TIMER = ['crawlItem',
+                 'crawlNewItems_bugs',
+                 'crawlNewItems_patch',
+                 'crawlUpdatedItems_bugs',
+                 'crawlUpdatedItems_patch'];
 
   /// Currently supported Savannah trackers as IDs to not waste space
   /// in the database.
