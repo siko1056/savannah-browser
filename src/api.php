@@ -8,6 +8,83 @@ require_once("formatter.php");
 class api
 {
   /**
+   * Process an API request.
+   *
+   * @param requestParameterUnfiltered an array like created from `$_GET`.
+   *
+   * @returns a string containing the result of the web request.
+   */
+  public function processRequest($requestParameterUnfiltered)
+  {
+    // Sanitize user input.
+    array_walk_recursive($requestParameterUnfiltered, function (&$value) {
+        $value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+      });
+    $requestParameter = $requestParameterUnfiltered;
+
+    // Determine API action.
+    if (array_key_exists('action', $requestParameter)
+        && (array_key_first($requestParameter) === 'action')) {
+      $apiAction = $requestParameter['action'];
+      unset($requestParameter['action']);
+      switch ($apiAction) {
+        case 'update':
+          return $this->processUpdateRequest($requestParameter);
+          break;
+        case 'get':
+          return $this->getItems('RichHTML');
+          break;
+        default:
+          die("API error: 'action' value must be one of {update|get}.");
+      }
+    } else {
+      die("API error: No 'action' as first parameter key specified.");
+    }
+  }
+
+
+  /**
+   * Process an API update request.
+   *
+   * @param requestParameter an array like created from `$_GET`.
+   *
+   * @returns a string containing the result of the web request.
+   */
+  private function processUpdateRequest($requestParameter)
+  {
+    $validKeys = ['tracker', 'ids'];
+    foreach ($requestParameter as $key => $value) {
+      if (array_search($key, $validKeys) === false) {
+        die("API error: invalid parameter key.
+                        Only {tracker|ids} are permitted for 'action=update'.");
+      }
+    }
+
+    $tracker = null;
+    if (array_key_exists('tracker', $requestParameter)) {
+      if (array_search($requestParameter['tracker'], CONFIG::TRACKER) === false) {
+        die("API error: invalid 'tracker' value.
+             Only {" . implode('|', CONFIG::TRACKER). "} are permitted.");
+      }
+      $tracker = $requestParameter['tracker'];
+    }
+
+    $ids = array();
+    if (array_key_exists('ids', $requestParameter)) {
+      $ids = $requestParameter['ids'];
+      if (preg_match('/[^0-9,]/', $ids)) {
+        die("API error: invalid 'ids' value.
+             Only characters 0-9 and comma as item separator ','
+             are permitted.");
+      }
+      $ids = array_map('intval', explode(',', $ids));
+    }
+
+    return $this->lookForUpdates($tracker, $ids);
+  }
+
+
+  /**
    * Translate IDs and TIMESTAMPS to human readable strings.
    *
    * @param format one of 'HTML', 'HTMLCSS', 'JSON', 'CSV'.
@@ -16,7 +93,7 @@ class api
    *
    * @returns items formatted as string according to @p format.
    */
-  public function getItems($format, $filter=false)
+  private function getItems($format, $filter=false)
   {
     $items = DB::getInstance()->getItems($filter);
     $fmt = new formatter($items);
@@ -50,10 +127,10 @@ class api
    *
    * @returns nothing `null`.
    */
-  public function lookForUpdates($tracker = null, $ids = array())
+  private function lookForUpdates($tracker = null, $ids = array())
   {
     // If no tracker is given, recursive call over all trackers.
-    if (! isset($tracker)) {
+    if ($tracker === null) {
       foreach (CONFIG::TRACKER as $tracker) {
         $this->lookForUpdates($tracker, $ids);
       }
