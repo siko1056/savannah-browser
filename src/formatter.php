@@ -6,6 +6,14 @@ class formatter
 {
   private $items;
 
+  /* From https://savannah.gnu.org/css/internal/base.css */
+  private $CSS_COLORS = [
+    'open'   => ['#fff2f2', '#ffe8e8', '#ffe0e0', '#ffd8d8', '#ffcece',
+                 '#ffc6c6', '#ffbfbf', '#ffb7b7', '#ffadad'],
+    'closed' => ['#f5ffeb', '#edffe6', '#eeffe1', '#e0ffd5', '#ccffbb',
+                 '#c6ffb9', '#c0ffb2', '#adffa4', '#a0ff9d']
+  ];
+
   /**
    * Constructor.
    */
@@ -31,7 +39,6 @@ class formatter
     return $item;
   }
 
-
   /**
    * Retrieve Savannah css class from item's priority.
    *
@@ -40,12 +47,12 @@ class formatter
    *
    * @returns a string with the css class attribute.
    */
-  private function cssPriority($item)
+  private function addCSS($item)
   {
     // Translate something like "5 - Normal" to "e", etc.
-    $str = chr(ord('a') + ((int) $item["Priority"][0]) - 1);
-    $str .= ($item["OpenClosed"] == "closed") ? 'closed' : '';
-    return " class=\"prior$str\"";
+    $color = $this->CSS_COLORS[$item["OpenClosed"]]
+                              [((int) $item["Priority"][0]) - 1];
+    return " style=\"background-color: $color; padding: 5px;\"";
   }
 
 
@@ -83,10 +90,12 @@ class formatter
   public function asHTML($color = false)
   {
     $columns = array_column(array_values(CONFIG::ITEM_DATA), 0);
-    $str = '<tr><th>' . implode('</th><th>', $columns) . '</th></tr>';
+    $css = ($color) ? ' style="background-color: powderblue; padding: 5px;"'
+                    : '';
+    $str = "<tr><th$css>" . implode("</th><th$css>", $columns) . '</th></tr>';
     foreach ($this->items as $item) {
       $item = $this->idsToString($item);
-      $css = ($color) ? $this->cssPriority($item) : '';
+      $css = ($color) ? $this->addCSS($item) : '';
       if ($color) {
         $item = $this->addURLs($item);
       }
@@ -96,7 +105,8 @@ class formatter
       }
       $str .= "<tr>$item_str</tr>";
     }
-    return "<table>$str</table>";
+    $css = ($color) ? ' style="border-collapse: collapse;"' : '';
+    return "<table$css>$str</table>";
   }
 
   /**
