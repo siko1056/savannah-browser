@@ -14,7 +14,7 @@ class db
   /**
    * Constructor.
    */
-  private final function  __construct()
+  private final function __construct()
   {
     if ($this->pdo == null) {
       // Open database.

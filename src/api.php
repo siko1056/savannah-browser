@@ -8,6 +8,28 @@ require_once("formatter.php");
 class api
 {
   /**
+   * Valid keys and data types for API action requests.
+   */
+  private $apiActions = null;
+
+  /**
+   * Constructor.
+   */
+  function __construct()
+  {
+    $this->apiActions = [
+      'get'    => array_combine(
+                    array_column(array_values(CONFIG::ITEM_DATA), 0),
+                    array_column(array_values(CONFIG::ITEM_DATA), 1)
+                    ),
+      'update' => array_slice(array_combine(
+                    array_column(array_values(CONFIG::ITEM_DATA), 0),
+                    array_column(array_values(CONFIG::ITEM_DATA), 1)
+                    ), 0, 2)
+      ];
+  }
+
+  /**
    * Process an API request.
    *
    * @param requestParameterUnfiltered an array like created from `$_GET`.
@@ -16,71 +38,107 @@ class api
    */
   public function processRequest($requestParameterUnfiltered)
   {
-    // Sanitize user input.
-    array_walk_recursive($requestParameterUnfiltered, function (&$value) {
-        $value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-      });
-    $requestParameter = $requestParameterUnfiltered;
+    $requestParameter = $this->validateRequest($requestParameterUnfiltered);
+    if (is_string($requestParameter)) {
+      die ("API error: $requestParameter");
+    }
 
-    // Determine API action.
-    if (array_key_exists('action', $requestParameter)
-        && (array_key_first($requestParameter) === 'action')) {
-      $apiAction = $requestParameter['action'];
-      unset($requestParameter['action']);
-      switch ($apiAction) {
-        case 'update':
-          return $this->processUpdateRequest($requestParameter);
-          break;
-        case 'get':
-          return $this->getItems('RichHTML');
-          break;
-        default:
-          die("API error: 'action' value must be one of {update|get}.");
-      }
-    } else {
-      die("API error: No 'action' as first parameter key specified.");
+    switch ($requestParameter['Action']) {
+      case 'update':
+        $tracker = array_key_exists('TrackerID', $requestParameter)
+                   ? $requestParameter['TrackerID']
+                   : null;
+        $ids = array_key_exists('ItemID', $requestParameter)
+               ? $requestParameter['ItemID']
+               : array();
+        return $this->lookForUpdates($tracker, $ids);
+        break;
+      case 'get':
+        return $this->getItems('RichHTML');
+        break;
+      default:
+        die("API error: 'action' value must be one of {update|get}.");
     }
   }
 
 
   /**
-   * Process an API update request.
+   * Validate request parameters.
    *
-   * @param requestParameter an array like created from `$_GET`.
+   * In PHP $_GET array keys should be unique and the rightmost key-value
+   * pair is chosen.  All parameters are case insensitive.
    *
-   * @returns a string containing the result of the web request.
+   * @param req an array like created from `$_GET`.
+   *
+   * @return a valid API request otherwise a string with an error message.
    */
-  private function processUpdateRequest($requestParameter)
+  private function validateRequest($req)
   {
-    $validKeys = ['tracker', 'ids'];
-    foreach ($requestParameter as $key => $value) {
-      if (array_search($key, $validKeys) === false) {
-        die("API error: invalid parameter key.
-                        Only {tracker|ids} are permitted for 'action=update'.");
+    // Sanitize user input.
+    array_walk_recursive($req, function (&$value) {
+        $value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+      });
+
+    // Validate API action.
+    if (!array_key_exists('Action', $req)) {
+      return "No parameter key 'Action' specified.";
+    }
+    $keys = array_keys($this->apiActions);
+    if (!in_array($req['Action'], $keys)) {
+      return "Parameter 'Action' value must be one of
+              {" . implode('|', $keys) . "}.";
+    }
+    $validRequest['Action'] = $req['Action'];
+
+    // Validate remaining parameters.
+    foreach ($req as $key => $value) {
+      switch ($key) {
+        case 'Action':
+          // already validated, nothing to do.
+          break;
+        case 'TrackerID':
+          if (array_search($req['TrackerID'], CONFIG::TRACKER) === false) {
+            return "Parameter 'TrackerID' value must be one of
+                    {" . implode('|', CONFIG::TRACKER). "}.";
+          }
+          $validRequest['TrackerID'] = $req['TrackerID'];
+          break;
+        case 'ItemID':
+          $validRequest['ItemID'] = $this->parseIntArray($req['ItemID']);
+          if ($validRequest['ItemID'] === false) {
+            return "Parameter 'ItemID' value:
+                    only characters '0-9' and comma as item separator ','
+                    are permitted.";
+          }
+          break;
+        default:
+          $keys = array_keys($this->apiActions[$req['Action']]);
+          if (!in_array($key, $keys)) {
+            return "Unknown parameter key '$key'
+                    for 'Action=" . $req['Action'] . ".'
+                    Valid parameter keys are: {" . implode('|', $keys) . "}.";
+          }
+          DEBUG_LOG("Validation: Parameter key '$key' ignored yet.");
       }
     }
 
-    $tracker = null;
-    if (array_key_exists('tracker', $requestParameter)) {
-      if (array_search($requestParameter['tracker'], CONFIG::TRACKER) === false) {
-        die("API error: invalid 'tracker' value.
-             Only {" . implode('|', CONFIG::TRACKER). "} are permitted.");
-      }
-      $tracker = $requestParameter['tracker'];
-    }
+    return $validRequest;
+  }
 
-    $ids = array();
-    if (array_key_exists('ids', $requestParameter)) {
-      $ids = $requestParameter['ids'];
-      if (preg_match('/[^0-9,]/', $ids)) {
-        die("API error: invalid 'ids' value.
-             Only characters 0-9 and comma as item separator ','
-             are permitted.");
-      }
-      $ids = array_map('intval', explode(',', $ids));
-    }
 
-    return $this->lookForUpdates($tracker, $ids);
+  /**
+   * Parse a string to an array of integers.
+   *
+   * @param value string of the form "1,2,3,4"
+   *
+   * @returns an array of integers or `false` on error.
+   */
+  private function parseIntArray($value)
+  {
+    if (empty($value) || preg_match('/[^0-9,]/', $value)) {
+      return false;
+    }
+    return array_map('intval', explode(',', $value));
   }
 
 
