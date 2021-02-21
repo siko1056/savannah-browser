@@ -11,6 +11,7 @@ class api
    * Valid keys and data types for API action requests.
    */
   private $apiActions = null;
+  private $formats = ['HTML', 'HTMLCSS', 'JSON', 'CSV'];
 
   /**
    * Constructor.
@@ -18,15 +19,18 @@ class api
   function __construct()
   {
     $this->apiActions = [
-      'get'    => array_combine(
-                    array_column(array_values(CONFIG::ITEM_DATA), 0),
-                    array_column(array_values(CONFIG::ITEM_DATA), 1)
-                    ),
-      'update' => array_slice(array_combine(
-                    array_column(array_values(CONFIG::ITEM_DATA), 0),
-                    array_column(array_values(CONFIG::ITEM_DATA), 1)
-                    ), 0, 2)
-      ];
+      'get' => array_combine(
+          array_column(array_values(CONFIG::ITEM_DATA), 0),
+          array_column(array_values(CONFIG::ITEM_DATA), 1),
+        )];
+    $this->apiActions['get']['TrackerID']  = CONFIG::TRACKER;
+    $this->apiActions['get']['OpenClosed'] = CONFIG::ITEM_STATE;
+    $this->apiActions['get']['Format']     = $this->formats;
+
+    $this->apiActions['update']['TrackerID']
+     = $this->apiActions['get']['TrackerID'];
+    $this->apiActions['update']['ItemID']
+     = $this->apiActions['get']['ItemID'];
   }
 
   /**
@@ -56,7 +60,7 @@ class api
                                    : die ("API error: $success");
         break;
       case 'get':
-        return $this->getItems('RichHTML');
+        return $this->getItems($requestParameter['Format']);
         break;
       default:
         die("API error: 'action' value must be one of {update|get}.");
@@ -93,24 +97,39 @@ class api
     $validRequest['Action'] = $req['Action'];
 
     // Validate remaining parameters.
-    $validKeys = array_keys($this->apiActions[$req['Action']]);
+    $validParameters = $this->apiActions[$req['Action']];
     foreach ($req as $key => $value) {
       // Check key to be valid.
       if ($key === 'Action') {
         continue;
       }
-      if (!in_array($key, $validKeys)) {
+      if (!in_array($key, array_keys($validParameters))) {
         return "Unknown parameter key '$key'
                 for 'Action=" . $req['Action'] . ".'
-                Valid parameter keys are: {" . implode('|', $keys) . "}.";
+                Valid parameter keys are:
+                {" . implode('|', array_keys($validParameters)) . "}.";
       }
 
-      // Separate values by ',' without empty elements.
-      $value = array_filter(explode(',', $req[$key]));
-      if (!is_array($value) || count($value) === 0) {
-        return "Invalid or empty value for parameter keys '$key'.";
+      // Validate value.
+      //FIXME: continue here.
+      switch ($key) {
+        default:
+          // Separate values by ',' without empty elements.
+          $values = array_filter(explode(',', $req[$key]));
+          if (!is_array($values) || count($values) === 0) {
+            return "Invalid or empty value for parameter keys '$key'.";
+          }
+          if (is_array($validParameters[$key])) {
+            foreach ($values as $value) {
+              if (!in_array($value, $validParameters[$key])) {
+                return "Unknown parameter value for '$key'.
+                        Valid parameter keys are:
+                        {" . implode('|', $validParameters[$key]) . "}.";
+              }
+            }
+          }
+          $validRequest[$key] = $values;
       }
-      $validRequest[$key] = $value;
     }
 
     return $validRequest;
