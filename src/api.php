@@ -51,7 +51,9 @@ class api
         $ids = array_key_exists('ItemID', $requestParameter)
                ? $requestParameter['ItemID']
                : array();
-        return $this->lookForUpdates($tracker, $ids);
+        $success = $this->lookForUpdates($tracker, $ids);
+        return ($success === true) ? "Update complete."
+                                   : die ("API error: $success");
         break;
       case 'get':
         return $this->getItems('RichHTML');
@@ -91,54 +93,27 @@ class api
     $validRequest['Action'] = $req['Action'];
 
     // Validate remaining parameters.
+    $validKeys = array_keys($this->apiActions[$req['Action']]);
     foreach ($req as $key => $value) {
-      switch ($key) {
-        case 'Action':
-          // already validated, nothing to do.
-          break;
-        case 'TrackerID':
-          if (array_search($req['TrackerID'], CONFIG::TRACKER) === false) {
-            return "Parameter 'TrackerID' value must be one of
-                    {" . implode('|', CONFIG::TRACKER). "}.";
-          }
-          $validRequest['TrackerID'] = $req['TrackerID'];
-          break;
-        case 'ItemID':
-          $validRequest['ItemID'] = $this->parseIntArray($req['ItemID']);
-          if ($validRequest['ItemID'] === false) {
-            return "Parameter 'ItemID' value:
-                    only characters '0-9' and comma as item separator ','
-                    are permitted.";
-          }
-          break;
-        default:
-          $keys = array_keys($this->apiActions[$req['Action']]);
-          if (!in_array($key, $keys)) {
-            return "Unknown parameter key '$key'
-                    for 'Action=" . $req['Action'] . ".'
-                    Valid parameter keys are: {" . implode('|', $keys) . "}.";
-          }
-          DEBUG_LOG("Validation: Parameter key '$key' ignored yet.");
+      // Check key to be valid.
+      if ($key === 'Action') {
+        continue;
       }
+      if (!in_array($key, $validKeys)) {
+        return "Unknown parameter key '$key'
+                for 'Action=" . $req['Action'] . ".'
+                Valid parameter keys are: {" . implode('|', $keys) . "}.";
+      }
+
+      // Separate values by ',' without empty elements.
+      $value = array_filter(explode(',', $req[$key]));
+      if (!is_array($value) || count($value) === 0) {
+        return "Invalid or empty value for parameter keys '$key'.";
+      }
+      $validRequest[$key] = $value;
     }
 
     return $validRequest;
-  }
-
-
-  /**
-   * Parse a string to an array of integers.
-   *
-   * @param value string of the form "1,2,3,4"
-   *
-   * @returns an array of integers or `false` on error.
-   */
-  private function parseIntArray($value)
-  {
-    if (empty($value) || preg_match('/[^0-9,]/', $value)) {
-      return false;
-    }
-    return array_map('intval', explode(',', $value));
   }
 
 
@@ -188,18 +163,25 @@ class api
   private function lookForUpdates($tracker = null, $ids = array())
   {
     // If no tracker is given, recursive call over all trackers.
-    if ($tracker === null) {
-      foreach (CONFIG::TRACKER as $tracker) {
-        $this->lookForUpdates($tracker, $ids);
+    if (($tracker === null) || is_array($tracker)) {
+      if ($tracker === null) {
+        $tracker = CONFIG::TRACKER;
       }
-      return;
+      foreach ($tracker as $singleTracker) {
+        $success = $this->lookForUpdates($singleTracker, $ids);
+        if ($success !== true) {  // Fail fast.
+          return $success;
+        }
+      }
+      return $success;
     }
     $trackerID = array_search($tracker, CONFIG::TRACKER);
     if ($trackerID === false) {
-      DEBUG_LOG("Invalid tracker '$tracker'.");
-      return;
+      return "Invalid TrackerID '$tracker'.  Stopping.";
     }
-    $ids = (is_array($ids)) ? $ids : [$ids];  // ensure array
+    if (!is_array($ids)) {
+      return "Invalid ItemID '$ids'.  Stopping.";
+    }
 
     $db = DB::getInstance();
     $crawler = new crawler();
@@ -214,7 +196,7 @@ class api
         $lastID = $db->getMaxItemIDFromTracker($trackerID);
         $ids = array_merge($ids, $crawler->crawlNewItems($tracker, $lastID));
       } else {
-        DEBUG_LOG("'crawlNewItems_$tracker' delayed for $nextLookup seconds.");
+        return "'crawlNewItems_$tracker' delayed for $nextLookup seconds.";
       }
 
       // Look for update items, only if not much new is to be added.
@@ -227,11 +209,11 @@ class api
           $ids = array_merge($ids, $crawler->crawlUpdatedItems($tracker,
                                                               $lastComment));
         } else {
-          DEBUG_LOG("'crawlUpdatedItems_$tracker'
-                    delayed for $nextLookup seconds.");
+          return "'crawlUpdatedItems_$tracker'
+                 delayed for $nextLookup seconds.";
         }
       } else {
-        DEBUG_LOG("'crawlUpdatedItems_$tracker' skipped.");
+        return "'crawlUpdatedItems_$tracker' skipped.";
       }
     } else {
       $nextLookup = $db->getTimer("crawlItem")
@@ -239,25 +221,30 @@ class api
       if ($nextLookup <= 0) {
         $db->setTimer("crawlItem", time());
       } else {
-        DEBUG_LOG("'crawlItem' delayed for $nextLookup seconds.");
-        return;
+        return "'crawlItem' delayed for $nextLookup seconds.";
       }
       if (count($ids) > CONFIG::MAX_CRAWL_ITEMS) {
-        DEBUG_LOG("'crawlItem' not more than "
-                  . CONFIG::MAX_CRAWL_ITEMS . " item updates permitted.");
-        return;
+        return "'crawlItem' not more than "
+               . CONFIG::MAX_CRAWL_ITEMS . " item updates permitted.";
       }
     }
 
     $ids = array_unique($ids);
     sort($ids);  // oldest first
     foreach ($ids as $id) {
+      $id = intval($id);
+      if ($id === 0) {
+        return "Invalid ItemID found.  Stopping.";
+      }
       DEBUG_LOG("--> Update item ID '$id' from '$tracker'.");
       list($item, $discussion) = $crawler->crawlItem($tracker, $id);
       if (isset($item) && isset($discussion)) {
         $db->update($item, $discussion);
       }
     }
+
+    // Success.
+    return true;
   }
 }
 
