@@ -154,6 +154,9 @@ class api
     $columns = (array_key_exists('Columns', $request))
              ? $request['Columns']
              : array_column(array_values(CONFIG::ITEM_DATA), 0);
+    if (!array_key_exists('Format', $request) {
+      return $fmt->asJSON();
+    }
     switch ($request['Format']) {
       case 'HTMLCSS':
         return $fmt->asHTML($columns, true);
