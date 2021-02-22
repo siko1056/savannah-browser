@@ -32,10 +32,18 @@ class formatter
    */
   private function idsToString($item)
   {
-    $item["TrackerID"]   = CONFIG::TRACKER[$item["TrackerID"]];
-    $item["OpenClosed"]  = CONFIG::ITEM_STATE[$item["OpenClosed"]];
-    $item["SubmittedOn"] = date(DATE_RFC2822, $item["SubmittedOn"]);
-    $item["LastComment"] = date(DATE_RFC2822, $item["LastComment"]);
+    if (array_key_exists('TrackerID', $item)) {
+      $item['TrackerID']   = CONFIG::TRACKER[$item['TrackerID']];
+    }
+    if (array_key_exists('OpenClosed', $item)) {
+      $item['OpenClosed']  = CONFIG::ITEM_STATE[$item['OpenClosed']];
+    }
+    if (array_key_exists('SubmittedOn', $item)) {
+      $item['SubmittedOn'] = date(DATE_RFC2822, $item['SubmittedOn']);
+    }
+    if (array_key_exists('LastComment', $item)) {
+      $item['LastComment'] = date(DATE_RFC2822, $item['LastComment']);
+    }
     return $item;
   }
 
@@ -49,9 +57,13 @@ class formatter
    */
   private function addCSS($item)
   {
+    if (!array_key_exists('OpenClosed', $item)
+        || !array_key_exists('Priority', $item)) {
+      return "";
+    }
     // Translate something like "5 - Normal" to "e", etc.
-    $color = $this->CSS_COLORS[$item["OpenClosed"]]
-                              [((int) $item["Priority"][0]) - 1];
+    $color = $this->CSS_COLORS[$item['OpenClosed']]
+                              [((int) $item['Priority'][0]) - 1];
     return " style=\"background-color: $color; padding: 5px;\"";
   }
 
@@ -68,11 +80,16 @@ class formatter
    */
   private function addURLs($item)
   {
-    $id  = $item["ItemID"];
-    $url = CONFIG::BASE_URL . '/' . $item["TrackerID"] . "/index.php?$id";
+    if (array_key_exists('TrackerID', $item)
+        && array_key_exists('ItemID', $item)) {
+      $id  = $item['ItemID'];
+      $url = CONFIG::BASE_URL . '/' . $item['TrackerID'] . "/index.php?$id";
 
-    $item["ItemID"] = "<a href=\"$url\">$id</a>";
-    $item["Title"]  = "<a href=\"$url\">" . $item["Title"] . "</a>";
+      $item['ItemID'] = "<a href=\"$url\">$id</a>";
+      if (array_key_exists('Title', $item)) {
+        $item['Title']  = "<a href=\"$url\">" . $item['Title'] . "</a>";
+      }
+    }
     return $item;
   }
 
@@ -80,16 +97,14 @@ class formatter
   /**
    * Get HTML representation of a list of items (without discussion).
    *
-   * @param items list of associative arrays with fields given in the
-   *              "database column" of `CONST::ITEM_DATA`.
+   * @param columns array of column head names.
    *
    * @param color (default = false) add Savannah compatible css classes.
    *
    * @returns item as HTML string.
    */
-  public function asHTML($color = false)
+  public function asHTML($columns, $color = false)
   {
-    $columns = array_column(array_values(CONFIG::ITEM_DATA), 0);
     $css = ($color) ? ' style="background-color: powderblue; padding: 5px;"'
                     : '';
     $str = "<tr><th$css>" . implode("</th><th$css>", $columns) . '</th></tr>';

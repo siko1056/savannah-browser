@@ -90,9 +90,19 @@ class db
    *
    * @returns an array of items.
    */
-  public function getItems($filter)
+  public function getItems($filter = null)
   {
+    // Default values.
     $columns = array_column(array_values(CONFIG::ITEM_DATA), 0);
+    if ($filter !== null) {
+      foreach ($filter as $key => $value) {
+        switch ($key) {
+          case 'Columns':
+            $columns = $value;
+            break;
+        }
+      }
+    }
     $command = 'SELECT ' . implode(",",  $columns) . '
                 FROM Items
                 ORDER BY

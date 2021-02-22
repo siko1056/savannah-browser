@@ -18,14 +18,16 @@ class api
    */
   function __construct()
   {
+    // Define an associative array of valid API actions.
     $this->apiActions = [
-      'get' => array_combine(
-          array_column(array_values(CONFIG::ITEM_DATA), 0),
-          array_column(array_values(CONFIG::ITEM_DATA), 1),
-        )];
+      'get' => array_combine(array_column(array_values(CONFIG::ITEM_DATA), 0),
+                             array_column(array_values(CONFIG::ITEM_DATA), 1),
+                            )];
     $this->apiActions['get']['TrackerID']  = CONFIG::TRACKER;
     $this->apiActions['get']['OpenClosed'] = CONFIG::ITEM_STATE;
     $this->apiActions['get']['Format']     = $this->formats;
+    $this->apiActions['get']['Columns']
+     = array_column(array_values(CONFIG::ITEM_DATA), 0);
 
     $this->apiActions['update']['TrackerID']
      = $this->apiActions['get']['TrackerID'];
@@ -36,31 +38,25 @@ class api
   /**
    * Process an API request.
    *
-   * @param requestParameterUnfiltered an array like created from `$_GET`.
+   * @param requestUnfiltered an array like created from `$_GET`.
    *
    * @returns a string containing the result of the web request.
    */
-  public function processRequest($requestParameterUnfiltered)
+  public function processRequest($requestUnfiltered)
   {
-    $requestParameter = $this->validateRequest($requestParameterUnfiltered);
-    if (is_string($requestParameter)) {
-      die ("API error: $requestParameter");
+    $request = $this->validateRequest($requestUnfiltered);
+    if (is_string($request)) {
+      die ("API error: $request");
     }
 
-    switch ($requestParameter['Action']) {
+    switch ($request['Action']) {
       case 'update':
-        $tracker = array_key_exists('TrackerID', $requestParameter)
-                   ? $requestParameter['TrackerID']
-                   : null;
-        $ids = array_key_exists('ItemID', $requestParameter)
-               ? $requestParameter['ItemID']
-               : array();
-        $success = $this->lookForUpdates($tracker, $ids);
+        $success = $this->actionUpdate($request);
         return ($success === true) ? "Update complete."
                                    : die ("API error: $success");
         break;
       case 'get':
-        return $this->getItems($requestParameter['Format']);
+        return $this->actionGet($request);
         break;
       default:
         die("API error: 'action' value must be one of {update|get}.");
@@ -78,56 +74,64 @@ class api
    *
    * @return a valid API request otherwise a string with an error message.
    */
-  private function validateRequest($req)
+  private function validateRequest($request)
   {
-    // Sanitize user input.
-    array_walk_recursive($req, function (&$value) {
+    // Sanitize all user input.
+    array_walk_recursive($request, function (&$value) {
         $value = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
       });
 
     // Validate API action.
-    if (!array_key_exists('Action', $req)) {
+    if (!array_key_exists('Action', $request)) {
       return "No parameter key 'Action' specified.";
     }
     $keys = array_keys($this->apiActions);
-    if (!in_array($req['Action'], $keys)) {
+    if (!in_array($request['Action'], $keys)) {
       return "Parameter 'Action' value must be one of
-              {" . implode('|', $keys) . "}.";
+              {" . implode(',', $keys) . "}.";
     }
-    $validRequest['Action'] = $req['Action'];
+    $validRequest['Action'] = $request['Action'];
 
     // Validate remaining parameters.
-    $validParameters = $this->apiActions[$req['Action']];
-    foreach ($req as $key => $value) {
-      // Check key to be valid.
+    $validParameters = $this->apiActions[$request['Action']];
+    foreach ($request as $key => $value) {
+      // Validate key.
       if ($key === 'Action') {
         continue;
       }
       if (!in_array($key, array_keys($validParameters))) {
         return "Unknown parameter key '$key'
-                for 'Action=" . $req['Action'] . ".'
+                for 'Action=" . $request['Action'] . ".'
                 Valid parameter keys are:
-                {" . implode('|', array_keys($validParameters)) . "}.";
+                {" . implode(',', array_keys($validParameters)) . "}.";
       }
 
-      // Validate value.
-      //FIXME: continue here.
+      // Validate value(s).
+      // Separate values by ',' without empty elements.
+      $values = explode(',', $request[$key]);
+      if (!is_array($values)
+          || (count($values) === 0)
+          || (count($values) !== count(array_filter($values)))) {
+        return "Parameter key '$key': Invalid or empty values given.";
+      }
+      // Validate individual values, if list of valid values is given.
+      if (is_array($validParameters[$key])) {
+        foreach ($values as $value) {
+          if (!in_array($value, $validParameters[$key])) {
+            return "Unknown parameter value for '$key'.
+                    Valid parameter keys are:
+                    {" . implode(',', $validParameters[$key]) . "}.";
+          }
+        }
+      }
       switch ($key) {
+        case 'Format':
+          if (count($values) !== 1) {
+            return "Parameter keys 'Format' allows only exact one value.";
+          }
+          $validRequest[$key] = $values[0];
+          break;
         default:
-          // Separate values by ',' without empty elements.
-          $values = array_filter(explode(',', $req[$key]));
-          if (!is_array($values) || count($values) === 0) {
-            return "Invalid or empty value for parameter keys '$key'.";
-          }
-          if (is_array($validParameters[$key])) {
-            foreach ($values as $value) {
-              if (!in_array($value, $validParameters[$key])) {
-                return "Unknown parameter value for '$key'.
-                        Valid parameter keys are:
-                        {" . implode('|', $validParameters[$key]) . "}.";
-              }
-            }
-          }
           $validRequest[$key] = $values;
       }
     }
@@ -139,22 +143,23 @@ class api
   /**
    * Translate IDs and TIMESTAMPS to human readable strings.
    *
-   * @param format one of 'HTML', 'HTMLCSS', 'JSON', 'CSV'.
-   *
-   * @param filter TODO: unused yet.
+   * @param request a validated array like created from `$_GET`.
    *
    * @returns items formatted as string according to @p format.
    */
-  private function getItems($format, $filter=false)
+  private function actionGet($request)
   {
-    $items = DB::getInstance()->getItems($filter);
+    $items = DB::getInstance()->getItems($request);
     $fmt = new formatter($items);
-    switch ($format) {
-      case 'RichHTML':
-        return $fmt->asHTML(true);
+    $columns = (array_key_exists('Columns', $request))
+             ? $request['Columns']
+             : array_column(array_values(CONFIG::ITEM_DATA), 0);
+    switch ($request['Format']) {
+      case 'HTMLCSS':
+        return $fmt->asHTML($columns, true);
         break;
       case 'HTML':
-        return $fmt->asHTML();
+        return $fmt->asHTML($columns);
         break;
       case 'JSON':
         return $fmt->asJSON();
@@ -173,92 +178,85 @@ class api
    * Look for updates on Savannah and the mailing list archive and update the
    * database accordingly.
    *
-   * @param tracker (optional) specify a tracker to narrow the search
+   * @param request a validated array like created from `$_GET`.
    *
-   * @param ids (optional) array of item IDs to narrow the search
-   *
-   * @returns nothing `null`.
+   * @returns `true` if the update succeeded, an error string otherwise.
    */
-  private function lookForUpdates($tracker = null, $ids = array())
+  private function actionUpdate($request)
   {
+    $requestIDs = array_key_exists('ItemID', $request)
+                ? $request['ItemID']
+                : array();
+
     // If no tracker is given, recursive call over all trackers.
-    if (($tracker === null) || is_array($tracker)) {
-      if ($tracker === null) {
-        $tracker = CONFIG::TRACKER;
-      }
-      foreach ($tracker as $singleTracker) {
-        $success = $this->lookForUpdates($singleTracker, $ids);
-        if ($success !== true) {  // Fail fast.
-          return $success;
-        }
-      }
-      return $success;
-    }
-    $trackerID = array_search($tracker, CONFIG::TRACKER);
-    if ($trackerID === false) {
-      return "Invalid TrackerID '$tracker'.  Stopping.";
-    }
-    if (!is_array($ids)) {
-      return "Invalid ItemID '$ids'.  Stopping.";
-    }
+    $trackers = (array_key_exists('TrackerID', $request))
+              ? $request['TrackerID']
+              : CONFIG::TRACKER;
 
-    $db = DB::getInstance();
-    $crawler = new crawler();
-
-    // If no IDs are specified, look for new or updated items.
-    if (count($ids) == 0) {
-      // Look for new items.
-      $nextLookup = $db->getTimer("crawlNewItems_$tracker")
-                  + CONFIG::DELAY["crawlNewItems"] - time();
-      if ($nextLookup <= 0) {
-        $db->setTimer("crawlNewItems_$tracker", time());
-        $lastID = $db->getMaxItemIDFromTracker($trackerID);
-        $ids = array_merge($ids, $crawler->crawlNewItems($tracker, $lastID));
-      } else {
-        return "'crawlNewItems_$tracker' delayed for $nextLookup seconds.";
+    foreach ($trackers as $tracker) {
+      $ids = $requestIDs;
+      $trackerID = array_search($tracker, CONFIG::TRACKER);
+      if ($trackerID === false) {
+        return "Invalid TrackerID '$tracker'.  Stopping.";
       }
 
-      // Look for update items, only if not much new is to be added.
-      if (count($ids) < CONFIG::MAX_CRAWL_ITEMS) {
-        $nextLookup = $db->getTimer("crawlUpdatedItems_$tracker")
-                    + CONFIG::DELAY["crawlUpdatedItems"] - time();
+      $db = DB::getInstance();
+      $crawler = new crawler();
+
+      // If no IDs are specified, look for new or updated items.
+      if (count($ids) == 0) {
+        // Look for new items.
+        $nextLookup = $db->getTimer("crawlNewItems_$tracker")
+                    + CONFIG::DELAY["crawlNewItems"] - time();
         if ($nextLookup <= 0) {
-          $db->setTimer("crawlUpdatedItems_$tracker", time());
-          $lastComment = $db->getMaxLastCommentFromTracker($trackerID);
-          $ids = array_merge($ids, $crawler->crawlUpdatedItems($tracker,
-                                                              $lastComment));
+          $db->setTimer("crawlNewItems_$tracker", time());
+          $lastID = $db->getMaxItemIDFromTracker($trackerID);
+          $ids = array_merge($ids, $crawler->crawlNewItems($tracker, $lastID));
         } else {
-          return "'crawlUpdatedItems_$tracker'
-                 delayed for $nextLookup seconds.";
+          return "'crawlNewItems_$tracker' delayed for $nextLookup seconds.";
+        }
+
+        // Look for update items, only if not much new is to be added.
+        if (count($ids) < CONFIG::MAX_CRAWL_ITEMS) {
+          $nextLookup = $db->getTimer("crawlUpdatedItems_$tracker")
+                      + CONFIG::DELAY["crawlUpdatedItems"] - time();
+          if ($nextLookup <= 0) {
+            $db->setTimer("crawlUpdatedItems_$tracker", time());
+            $lastComment = $db->getMaxLastCommentFromTracker($trackerID);
+            $ids = array_merge($ids, $crawler->crawlUpdatedItems($tracker,
+                                                                $lastComment));
+          } else {
+            return "'crawlUpdatedItems_$tracker'
+                  delayed for $nextLookup seconds.";
+          }
+        } else {
+          DEBUG_LOG("'crawlUpdatedItems_$tracker' skipped.");
         }
       } else {
-        return "'crawlUpdatedItems_$tracker' skipped.";
+        $nextLookup = $db->getTimer("crawlItem")
+                    + CONFIG::DELAY["crawlItem"] - time();
+        if ($nextLookup <= 0) {
+          $db->setTimer("crawlItem", time());
+        } else {
+          return "'crawlItem' delayed for $nextLookup seconds.";
+        }
+        if (count($ids) > CONFIG::MAX_CRAWL_ITEMS) {
+          return "'crawlItem' not more than "
+                . CONFIG::MAX_CRAWL_ITEMS . " item updates permitted.";
+        }
       }
-    } else {
-      $nextLookup = $db->getTimer("crawlItem")
-                  + CONFIG::DELAY["crawlItem"] - time();
-      if ($nextLookup <= 0) {
-        $db->setTimer("crawlItem", time());
-      } else {
-        return "'crawlItem' delayed for $nextLookup seconds.";
-      }
-      if (count($ids) > CONFIG::MAX_CRAWL_ITEMS) {
-        return "'crawlItem' not more than "
-               . CONFIG::MAX_CRAWL_ITEMS . " item updates permitted.";
-      }
-    }
 
-    $ids = array_unique($ids);
-    sort($ids);  // oldest first
-    foreach ($ids as $id) {
-      $id = intval($id);
-      if ($id === 0) {
-        return "Invalid ItemID found.  Stopping.";
-      }
-      DEBUG_LOG("--> Update item ID '$id' from '$tracker'.");
-      list($item, $discussion) = $crawler->crawlItem($tracker, $id);
-      if (isset($item) && isset($discussion)) {
-        $db->update($item, $discussion);
+      $ids = array_map('intval', array_unique($ids));
+      sort($ids);  // oldest first
+      foreach ($ids as $id) {
+        if ($id === 0) {
+          return "Invalid ItemID found.  Stopping.";
+        }
+        DEBUG_LOG("--> Update item ID '$id' from '$tracker'.");
+        list($item, $discussion) = $crawler->crawlItem($tracker, $id);
+        if (isset($item) && isset($discussion)) {
+          $db->update($item, $discussion);
+        }
       }
     }
 
