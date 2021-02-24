@@ -92,25 +92,48 @@ class db
    */
   public function getItems($filter = null)
   {
+    $data = array();  // return value
     // Default values.
+    // SELECT
     $columns = array_column(array_values(CONFIG::ITEM_DATA), 0);
+    // WHERE
+    $conditions['sql']    = array();
+    $conditions['values'] = array();
     if ($filter !== null) {
       foreach ($filter as $key => $value) {
         switch ($key) {
           case 'Columns':
             $columns = $value;
             break;
+          case 'TrackerID':  // Exact matches
+          case 'OpenClosed':
+            $validV = ($key == 'OpenClosed') ? CONFIG::ITEM_STATE
+                                             : CONFIG::TRACKER;
+            $sql = array();
+            foreach ($value as $k => $v) {
+              $v = array_search($v, $validV);  // translate to ID
+              array_push($sql, "$key=:$key$k");
+              $conditions['values'] = array_merge($conditions['values'],
+                                                  [":$key$k" => $v]);
+            }
+            array_push($conditions['sql'], implode(" OR ",  $sql));
+            break;
         }
       }
     }
+    // Trivial condition, if no conditions are given.
+    if (count($conditions['sql']) == 0) {
+      array_push($conditions['sql'], '1=1');
+    }
     $command = 'SELECT ' . implode(",",  $columns) . '
                 FROM Items
+                WHERE
+                  ' . implode(" AND ", $conditions['sql']) . '
                 ORDER BY
                   TrackerID ASC,
                   ItemID    DESC';
     $stmt = $this->pdo->prepare($command);
-    $stmt->execute();
-    $data = array();
+    $stmt->execute($conditions['values']);
     while ($item = $stmt->fetch(PDO::FETCH_ASSOC)) {
       array_push($data, $item);
     }
