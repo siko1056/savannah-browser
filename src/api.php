@@ -70,7 +70,7 @@ class api
    * In PHP $_GET array keys should be unique and the rightmost key-value
    * pair is chosen.  All parameters are case insensitive.
    *
-   * @param req an array like created from `$_GET`.
+   * @param request an array like created from `$_GET`.
    *
    * @return a valid API request otherwise a string with an error message.
    */
@@ -267,5 +267,7 @@ class api
     return true;
   }
 }
+
+echo((new api())->processRequest($_GET));
 
 ?>
