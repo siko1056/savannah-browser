@@ -33,6 +33,11 @@ class api
     $apiActions['get']['Format']       = $this->formats;
     $apiActions['get']['Columns']      = $columnNames;
     $apiActions['get']['Limit']        = null;
+    $apiActions['get']['OrderBy']      = $columnNames;
+    // Allow negations for inverted order.
+    foreach ($apiActions['get']['OrderBy'] as $value) {
+      array_push($apiActions['get']['OrderBy'], "!$value");
+    }
     $apiActions['update']['TrackerID'] = CONFIG::TRACKER;
     $apiActions['update']['ItemID']    = null;
 

@@ -94,9 +94,10 @@ class db
   {
     $data = array();  // return value
     // SQL command
-    $sqlSELECT = array_column(array_values(CONFIG::ITEM_DATA), 0);
-    $sqlWHERE  = array();
-    $sqlLIMIT  = '';
+    $sqlSELECT  = array_column(array_values(CONFIG::ITEM_DATA), 0);
+    $sqlWHERE   = array();
+    $sqlLIMIT   = '';
+    $sqlORDERBY = ['TrackerID ASC', 'ItemID DESC'];
     $sqlDATA   = array();
     if ($filter !== null) {
       foreach ($filter as $key => $value) {
@@ -126,7 +127,7 @@ class db
           case 'ItemID':
           case 'Title':
           case 'SubmittedBy':
-          //TODO
+          //TODO: useful date queries
           //case 'SubmittedOn':
           //case 'LastComment':
           case 'Category':
@@ -152,6 +153,13 @@ class db
             $sqlLIMIT = ' LIMIT :Limit ';
             $sqlDATA = array_merge($sqlDATA, [':Limit' => (int) $value]);
             break;
+          case 'OrderBy':
+            $sqlORDERBY = array();
+            foreach ($value as $v) {
+              array_push($sqlORDERBY, ($v[0] === '!') ? substr($v, 1) . ' DESC'
+                                                      : "$v ASC");
+            }
+            break;
         }
       }
     }
@@ -161,16 +169,11 @@ class db
     }
     $command = 'SELECT ' . implode(",",  $sqlSELECT) . '
                 FROM Items
-                WHERE
-                ' . implode(" AND ", $sqlWHERE) . '
-                ORDER BY
-                  TrackerID ASC,
-                  ItemID    DESC
-            ' . $sqlLIMIT;
-    DEBUG_LOG("$command");
-    echo "<pre>";
-    var_dump($sqlDATA);
-    echo "</pre>";
+                WHERE '
+                . implode(" AND ", $sqlWHERE) . '
+                ORDER BY '
+                . implode(", ", $sqlORDERBY)
+                . $sqlLIMIT;
     $stmt = $this->pdo->prepare($command);
     if ($stmt === false) {
       DEBUG_LOG("SQL command preparation failed: $command");
