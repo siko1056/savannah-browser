@@ -19,20 +19,24 @@ class api
   function __construct()
   {
     // Define an associative array of valid API actions.
-    $this->apiActions = [
-      'get' => array_combine(array_column(array_values(CONFIG::ITEM_DATA), 0),
-                             array_column(array_values(CONFIG::ITEM_DATA), 1),
-                            )];
-    $this->apiActions['get']['TrackerID']  = CONFIG::TRACKER;
-    $this->apiActions['get']['OpenClosed'] = CONFIG::ITEM_STATE;
-    $this->apiActions['get']['Format']     = $this->formats;
-    $this->apiActions['get']['Columns']
-     = array_column(array_values(CONFIG::ITEM_DATA), 0);
+    $columnNames = array_column(array_values(CONFIG::ITEM_DATA), 0);
 
-    $this->apiActions['update']['TrackerID']
-     = $this->apiActions['get']['TrackerID'];
-    $this->apiActions['update']['ItemID']
-     = $this->apiActions['get']['ItemID'];
+    $apiActions['get'] = array_fill_keys($columnNames, null);
+    $apiActions['get']['TrackerID']    = CONFIG::TRACKER;
+    $apiActions['get']['OpenClosed']   = CONFIG::ITEM_STATE;
+    foreach ($apiActions['get'] as $key => $value) {  // Allow negations.
+      if (($key === 'SubmittedOn') || ($key === 'LastComment')) {
+        continue;  // Negations make no sense here.
+      }
+      $apiActions['get']["$key!"] = $value;
+    }
+    $apiActions['get']['Format']       = $this->formats;
+    $apiActions['get']['Columns']      = $columnNames;
+    $apiActions['get']['Limit']        = null;
+    $apiActions['update']['TrackerID'] = CONFIG::TRACKER;
+    $apiActions['update']['ItemID']    = null;
+
+    $this->apiActions = $apiActions;
   }
 
   /**
@@ -103,7 +107,7 @@ class api
         return "Unknown parameter key '$key'
                 for 'Action=" . $request['Action'] . ".'
                 Valid parameter keys are:
-                {" . implode(',', array_keys($validParameters)) . "}.";
+                {" . implode('=,', array_keys($validParameters)) . "=}.";
       }
 
       // Validate value(s).
@@ -126,8 +130,9 @@ class api
       }
       switch ($key) {
         case 'Format':
+        case 'Limit':
           if (count($values) !== 1) {
-            return "Parameter keys 'Format' allows only exact one value.";
+            return "Parameter keys '$key' allows only exact one value.";
           }
           $validRequest[$key] = $values[0];
           break;
@@ -149,7 +154,12 @@ class api
    */
   private function actionGet($request)
   {
+    $time_start = microtime(true);
     $items = DB::getInstance()->getItems($request);
+    $time_end   = microtime(true);
+    $time = substr($time_end - $time_start, 0, 6);
+    //FIXME: better way to report this?
+    DEBUG_LOG("Found " . count($items) . " item(s) in $time seconds.");
     $fmt = new formatter($items);
     $columns = (array_key_exists('Columns', $request))
              ? $request['Columns']

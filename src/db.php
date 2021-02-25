@@ -93,47 +93,95 @@ class db
   public function getItems($filter = null)
   {
     $data = array();  // return value
-    // Default values.
-    // SELECT
-    $columns = array_column(array_values(CONFIG::ITEM_DATA), 0);
-    // WHERE
-    $conditions['sql']    = array();
-    $conditions['values'] = array();
+    // SQL command
+    $sqlSELECT = array_column(array_values(CONFIG::ITEM_DATA), 0);
+    $sqlWHERE  = array();
+    $sqlLIMIT  = '';
+    $sqlDATA   = array();
     if ($filter !== null) {
       foreach ($filter as $key => $value) {
+        $op = null;
+        $makeValid = null;
+        $eq   = '=';
+        $like = 'LIKE';
+        $conj = 'OR';
+        if (substr($key, -1) === '!') {  // inverted query
+          $key  = substr($key, 0, -1);
+          $eq   = '<>';
+          $like = 'NOT LIKE';
+          $conj = 'AND';
+        }
         switch ($key) {
           case 'Columns':
-            $columns = $value;
+            $sqlSELECT = $value;
             break;
-          case 'TrackerID':  // Exact matches
+          case 'TrackerID':
+            $op = (is_null($op) ? $eq : $op);
+            $makeValid = (!is_null($makeValid) ? $makeValid
+              : function($v){ return array_search($v, CONFIG::TRACKER); });
           case 'OpenClosed':
-            $validV = ($key == 'OpenClosed') ? CONFIG::ITEM_STATE
-                                             : CONFIG::TRACKER;
+            $op = (is_null($op) ? $eq : $op);
+            $makeValid = (!is_null($makeValid) ? $makeValid
+              : function($v){ return array_search($v, CONFIG::ITEM_STATE); });
+          case 'ItemID':
+          case 'Title':
+          case 'SubmittedBy':
+          //TODO
+          //case 'SubmittedOn':
+          //case 'LastComment':
+          case 'Category':
+          case 'Severity':
+          case 'Priority':
+          case 'ItemGroup':
+          case 'Status':
+          case 'AssignedTo':
+          case 'OriginatorName':
+          case 'Release':
+          case 'OperatingSystem':
+            $op = (is_null($op) ? $like : $op);
+            $makeValid = (!is_null($makeValid) ? $makeValid
+              : function($v){ return "%$v%"; });
             $sql = array();
             foreach ($value as $k => $v) {
-              $v = array_search($v, $validV);  // translate to ID
-              array_push($sql, "$key=:$key$k");
-              $conditions['values'] = array_merge($conditions['values'],
-                                                  [":$key$k" => $v]);
+              array_push($sql, "$key $op :$key$k");
+              $sqlDATA = array_merge($sqlDATA, [":$key$k" => $makeValid($v)]);
             }
-            array_push($conditions['sql'], implode(" OR ",  $sql));
+            array_push($sqlWHERE, '(' . implode(" $conj ",  $sql) . ')');
+            break;
+          case 'Limit':
+            $sqlLIMIT = ' LIMIT :Limit ';
+            $sqlDATA = array_merge($sqlDATA, [':Limit' => (int) $value]);
             break;
         }
       }
     }
     // Trivial condition, if no conditions are given.
-    if (count($conditions['sql']) == 0) {
-      array_push($conditions['sql'], '1=1');
+    if (count($sqlWHERE) == 0) {
+      array_push($sqlWHERE, '1=1');
     }
-    $command = 'SELECT ' . implode(",",  $columns) . '
+    $command = 'SELECT ' . implode(",",  $sqlSELECT) . '
                 FROM Items
                 WHERE
-                  ' . implode(" AND ", $conditions['sql']) . '
+                ' . implode(" AND ", $sqlWHERE) . '
                 ORDER BY
                   TrackerID ASC,
-                  ItemID    DESC';
+                  ItemID    DESC
+            ' . $sqlLIMIT;
+    DEBUG_LOG("$command");
+    echo "<pre>";
+    var_dump($sqlDATA);
+    echo "</pre>";
     $stmt = $this->pdo->prepare($command);
-    $stmt->execute($conditions['values']);
+    if ($stmt === false) {
+      DEBUG_LOG("SQL command preparation failed: $command");
+      return $data;
+    }
+    try {
+      $stmt->execute($sqlDATA);
+    } catch (Exception $e) {
+      var_dump($e);
+      return $data;
+    }
     while ($item = $stmt->fetch(PDO::FETCH_ASSOC)) {
       array_push($data, $item);
     }
