@@ -114,6 +114,12 @@ class api
                 Valid parameter keys are:
                 {" . implode('=,', array_keys($validParameters)) . "=}.";
       }
+      if ((substr($key, -1) === '!')
+          && (array_key_exists(substr($key, 0, -1), $request))) {
+        return "Parameter key '" . substr($key, 0, -1) . "'
+                and it's negation '$key'
+                in one request are not supported.";
+      }
 
       // Validate value(s).
       // Separate values by ',' without empty elements.
@@ -163,8 +169,7 @@ class api
     $items = DB::getInstance()->getItems($request);
     $time_end   = microtime(true);
     $time = substr($time_end - $time_start, 0, 6);
-    //FIXME: better way to report this?
-    DEBUG_LOG("Found " . count($items) . " item(s) in $time seconds.");
+    //DEBUG_LOG("Found " . count($items) . " item(s) in $time seconds.");
     $fmt = new formatter($items);
     $columns = (array_key_exists('Columns', $request))
              ? $request['Columns']
@@ -283,6 +288,8 @@ class api
   }
 }
 
-echo((new api())->processRequest($_GET));
+if (!defined('USE_API_INCLUDED')) {
+  echo((new api())->processRequest($_GET));
+}
 
 ?>
